@@ -1,0 +1,597 @@
+---
+title: "Análisis de un conjunto de datos de origen biológico mediante técnicas de machine
+  learning supervisadas y no supervisadas"
+author: "Equipo.1_UNIR"
+date: "2025-01-09"
+output: html_document
+  theme: simplex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+                                                 **EQUIPO 1 UNIR**
+
+### ---- Análisis de un conjunto de datos de origen biológico mediante técnicas de machine learning supervisadas y no supervisadas ---- ###
+
+### ---- Pasos previos ----
+### ---- 0. Cargar librerias e instalar librerias ---- 
+
+```{r}
+rm(list = ls())                     # Limpieza inicial del entorno
+
+#install.packages("e1071")
+#install.packages("randomForest")
+#install.packages("glmnet")
+#install.packages("rpart.plot")
+library(dplyr)
+library(glmnet)                     # ElasticNet
+library(tidyverse)
+library(Rtsne)
+library(caret)                      # ML, kNN, SVM, DT
+library(rpart)                      # DT
+library(rpart.plot)                 # DT plot
+library(rattle)                     # DT plot
+library(pROC)                       # ROC
+library(PRROC)                      # PR-Curve
+library(MASS)                       # LDA
+library(klaR)                       # RDA
+library(gridExtra)                  # juntar los gráficos
+library(randomForest)               # Random Forest
+library(e1071)                      # Naive-Bayes
+```
+
+
+# ---- 0.1 Pasos previos : Asignar dierctorio y cargar los datos y librerias ----
+
+ Al ser 5 integrantes en el equipo se establece un "path" para cada uno, asi se facilita el trabajo en grupo
+ 
+YA NO HACE FALTA: Si trabajas desde el repo de git, tienes los datos en la misma carpeta
+```{r}
+'path_Maria.Luisa <-
+path_Sara <-'
+path_Gracia <-
+path_Guillermo <- "C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3"
+path_Gorka <- 
+
+setwd(path_Guillermo)
+```
+## ---- 0.2 Pasos previos : Cargar datos y comprobacion inicial ----
+
+Cargar los datos y eliminar las columnas que no estén solo a 0
+```{r}
+
+clases <- read.csv("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\classes.csv", sep = ";", col.names = c("SampleID","Clase"))                                                 # Cargo el csv "clases" 
+df <- read.csv("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\gene_expression.csv", sep = ";", col.names = read_lines("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\column_names.txt"), row.names = clases$SampleID) # cargo mi dataframe de trabajo
+
+sumas <- colSums(df)                                                                         # sumo los datos por columnas
+columnascero <- names(sumas[sumas==0])                                                       # veo cuantas sumas son == 0
+print(columnascero)                                                                          # veo qué datos hay que excluir
+df <- df[, !names(df) %in% columnascero]                                                     # reemplazo el df sin esas cols
+
+df$Class <- clases$Clase                                                                     # adjunto las clases
+
+```
+
+ Preprocesado y comprobacion previa
+```{r}
+any(is.na(df))
+df_scale <- df[,sapply(df, is.numeric)]
+df_scale <-scale(df_scale)
+scaled_df <- as.data.frame(df_scale)
+scaled_df$Class <- clases$Clase
+```
+
+ Veo que no hay ningun NA, por lo que no tenemos que imputar ningún dato. Escalamos los datos y guardamos en un nuevo df llamado df_scale 
+
+
+# 1. Reducción de la dimensionalidad
+
+### 1.1. PCA
+El primer método que vamos a probar es el PCA. Este es un método que asume linealidad en los datos, así que si no nos convence el resultado escogeremos como segundo método otro que no la asuma, por si es por eso.
+
+```{r}
+pca <- prcomp(scaled_df, center=FALSE, scale=FALSE) # lo ponemos a false por que lo hemos hecho en el apartado anterior
+pca_df <- data.frame(pca$x)
+varianzas <- pca$sdev^2
+total.varianza <- sum(varianzas)
+varianza.explicada <- varianzas/total.varianza
+varianza.acumulada <- cumsum(varianza.explicada)
+n.pc <- min(which(varianza.acumulada > 0.9))
+```
+
+Graficamos resultado
+```{r}
+x_label <- paste0(paste("PC1", round(varianza.explicada[1] * 100, 2)), "%")
+y_label <- paste0(paste("PC2", round(varianza.explicada[2] * 100, 2)), "%")
+
+ggplot(pca_df, aes(x=PC1, y=PC2, color = clases$Clase)) +
+  geom_point(size=3) +
+  scale_color_manual(values=c("red", "blue", "green", "orange", "purple")) +
+  labs(title="PCA: primeras dos dimensiones", x=x_label, y=y_label, color="Grupo") +
+  theme_classic() +
+  theme(panel.grid.major = element_line(color="gray90"), panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"), plot.title = element_text(hjust = 0.5))
+```
+Solamente separa el grupo AGH, por lo que asumimos que los datos no son linealmente separables y pasamos a otros métodos que no asumen linealidad.
+
+
+### 1.2. t-SNE
+Probamos con este por que, al preservar las distancias locales en el nuevo espacio, puede ser útil para aplicar métodos de ML después, ya que no deforma tanto los datos, solamente los aplana.
+
+```{r}
+tsne <- Rtsne(X=scaled_df)
+tsne_result <- data.frame(tsne$Y)
+
+# Graficamos
+ggplot(tsne_result, aes(x = X1, y = X2, color = clases$Clase)) +
+geom_point(size = 3) +
+scale_color_manual(values = c("red", "blue", "green", "orange", "purple")) +
+labs(title = "t-SNE", x = "PC1", y = "PC2", color = "Grupo") +
+theme_classic() +
+theme(panel.grid.major = element_line(color = "gray90"), panel.grid.minor = element_blank(),
+panel.background = element_rect(fill = "gray95"), plot.title=element_text(hjust=0.5))
+```
+
+```{r}
+##### 2.CLUSTERIZACIÓN
+matriz_dist<-dist(tsne_result) #Creamos la matriz de distancias cogiendo como base de datos la obtenida en 
+                              #el método óptimo de reducción de dimensionalidad
+
+#Implementamos métodos jerárquicos debido a que los no jerárquicos son más útiles en dataset pequeños.
+#Elegimos los modelos complete y ward ya que al hacer diversas pruebas son los que muestran unos clústers más definidos
+#y proporcionados. 
+cluster_modelo_complete<-hclust(matriz_dist, method="complete")
+cluster_modelo_ward<-hclust(matriz_dist, method="ward.D")
+
+color<-rainbow(5)
+
+#Graficamos
+
+graphic_cluster_ward<-fviz_dend(cluster_modelo_ward,
+                                  cex=0.5,
+                                  k=5,
+                                  pallette=color,
+                                  main="Ward Cluster Model",
+                                  xlab="Observaciones",
+                                  ylab="Distancia")
+graphic_cluster_complete<-fviz_dend(cluster_modelo_complete,
+                                cex=0.5,
+                                k=5,
+                                pallette=color,
+                                main="Complete Cluster Model",
+                                xlab="Observaciones",
+                                ylab="Distancia")
+
+grid.arrange(graphic_cluster_ward, graphic_cluster_complete)
+
+#Podemos probar a realizar un método No jerárquico (K-means):
+fviz_nbclust(tsne_result, kmeans, method = "wss")     #Comprobamos el número de k más adecuado
+
+kmeans.result<-kmeans(tsne_result, centers = 3, iter.max=100)
+
+fviz_cluster(kmeans.result, tsne_result)    #Graficamos
+
+#Como suponíamos al principio de este apartado, al haber tantos datos a pesar de haber aplicado el modelo de 
+#reducción de dimensionalidad, los datos se encuentran muy amontados y no aportan información útil en este método.
+```
+
+# 1. Métodos supervisados
+
+Seleccionaremos en este caso 3 métodos de aprendizaje supervisado para nuestros datos. Con los resultados, evaluaremos para cada uno el rendimientos que nos ofrece, así como los aspectos positivos y negativos. 
+
+## División del conjunto de datos en conjuntos de entrenamiento/prueba (training/testing)
+
+Transformamos en factor la variable "Class" de nuestros datos. Fijamos una semilla de aleatorización y dividimos el conjutno de datos en training/testing: destinamos el 80% de los datos a la parte del entrenamiento y el 20% a la de testing. 
+
+Creamos la fórmula formula_clases sumando cada variable. Esta fórmula será necesaria posteriormente para aplicar los métodos supervisados.
+
+```{r include=FALSE}
+
+colnames(scaled_df)                              # Veo el nombre de las columnas
+scaled_df$Class <- as.factor(scaled_df$Class)    # Factorizo mi variable de interes
+
+set.seed(123)                                    # Seteo la semilla
+train_index <- createDataPartition(scaled_df$Class, p = 0.8, list = FALSE) # Creo el indice de particion y lo verifico
+train_index
+
+training_clases <- scaled_df[train_index, ]      # Con el indice creado asigno el reparto a mis datos de train y test
+testing_clases <- scaled_df[-train_index, ]
+
+str(training_clases)
+
+training_clases <- as.data.frame(training_clases) # Cambio el formato para trabajar con data.frames
+testing_clases <- as.data.frame(testing_clases)
+
+# Voy a realizar la formula que usara mi algortimo
+
+variables <- colnames(training_clases[1:497])     # Primero selecciono todas las variables excluyendo "Class" que es la que quiero predecir
+variables
+
+formula_clases <- as.formula(paste("Class ~", paste(variables, collapse = "+"))) 
+# la formula sera enfrentar mi var a predecir frente a la suma de variables que usare para ello 
+# "~" separa la var.dependiente (Class) de las vars. independientes (predictoras)
+
+formula_clases
+
+training_clases$Class <- as.factor(training_clases$Class)
+
+```
+
+## Selección y entrenamiento de modelos
+
+### LDA
+
+El LDA asume que las variables predictoras tienen una distribución normal (gaussiana) y que las diferentes clases tienen medias específicas de clase y varianzas/covarianzas iguales. El objetivo del LDA es encontrar la combinación de las variables que proporcionan la mejor separación posible entre grupos. Se basa en la obtención de LD1. LD1 es la combinación lineal de las variables que maximiza la separación entre las clases. Cuanto más grande es el coeficiente de LD1, mayor poder para distinguir entre las clases.
+
+El cálculo de LDA viene proporcionado por la función lda() de la librería MASS.
+
+```{r, echo=TRUE, results='hide'}
+
+lda_model <- lda(formula_clases, data = training_clases)
+invisible(lda_model$scaling)
+lda_pred <- predict(lda_model, newdata = training_clases)
+invisible(lda_pred$x)
+
+lda_predictions <- predict(lda_model, newdata = testing_clases)
+invisible(lda_predictions$x)
+
+predicted_classes_lda <- lda_predictions$class
+predicted_classes_lda
+length(predicted_classes_lda)
+
+true_classes_lda <- as.factor(testing_clases$Class)
+true_classes_lda
+length(true_classes_lda)
+
+probabilities_lda <- predict(lda_model, newdata = testing_clases, type = "prob")
+
+```
+
+
+### RDA
+
+El RDA corresponde a un intermedio entre el LDA y el QDA: reduce las covarianzas separadas del QDA (cuadrático) hacia una covarianza común como en el LDA (lineal). Este método es útil parar un gran conjunto de datos multivariados que contengan predictores altamente correlacionados. El análisis RDA viene proporcionada por la función rda() del paquete klaR.
+
+```{r, echo=TRUE, results='hide'}
+
+rda_model <- rda(formula_clases, data = training_clases)
+rda_model
+
+rda_pred <- predict(rda_model, newdata = training_clases)
+rda_pred
+
+rda_predictions <- predict(rda_model, newdata = testing_clases)
+rda_predictions
+
+predicted_classes_rda <- rda_predictions$class
+predicted_classes_rda
+length(predicted_classes_rda)
+
+true_classes_rda <- as.factor(testing_clases$Class)
+true_classes_rda
+length(true_classes_rda)
+
+probabilities_rda <- predict(rda_model, newdata = testing_clases, type = "prob")
+
+```
+### k-NN
+
+El k-NN es un método de aprendizaje supervisado simple tanto en comprensión como en implementación, eficaz para conjuntos de datos pequeños y bien separados. Calcula en primer lugar las instancias k en datos existentes que sean lo más similares posibles (vecinos más cercanos) a los nuevos datos, para posteriormente usar esas etiquetas en los vecinos más cercanos para predecir la etiqueta de nuevos datos. Una de las principales desventajas es encontrar el valor de k óptimo: un valor de k alto puede sesgar el aprendizaje con el riego de ignorar patrones pequeños; un valor bajo permite una mayor influencia de los datos con ruido o *outliners*. El valor k óptimo se encuentra entre estos 2 extremos.
+
+Cargamos en este caso las librerías **tidyverse** y **caret**. Esta última nos permite crear el modelo k-NN usando la función **train** y especificando el método "knn". Utilizamos la validación cruzada con 10 folds (subparticiones) y preprocesado con los datos mediante el centrado y escala. Aplicamos un tuneLength de 30: el modelo procesa 30 pruebas de k diferentes que podemos ver en el plot(knnModel), para la selección del k adecuado.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+set.seed(12345)
+knnModel <- train(Class ~ .,
+                  data = training_clases,
+                  method = "knn",
+                  trControl = trainControl(method = "cv", number = 10),
+                  preProcess = c("center", "scale"),
+                  tuneLength = 30)
+knnModel
+
+plot(knnModel)
+
+predictions_knn <- predict(knnModel, newdata = testing_clases)
+
+testing_clases$Class <- as.factor(testing_clases$Class)
+
+probabilities_knn <- predict(knnModel, newdata = testing_clases, type = "prob")
+
+```
+### SVM-Kernel de base radial o gaussiano
+
+Las Máquinas de vectores de soporte (SVM) se basan principalmente en separar clases por medio del estudio de la representación de varios puntos en un hiperplano: la separación en el hiperplano marcará la diferencia entre las clases. El Kernel gaussiano (RBF) es una técnica utilizada en las SVM para transformar los datos que no son linealmente separables en un espacio de mayor dimensión donde puedan ser separados linealmente. Esto es útil en caso de que la separación entre clases sigue curvas no lineales, o que los conjuntos de datos no son completamente separables.
+
+En este caso, utilizaremos el método **"svmRadial"** dentro de la función svm() para especificar el uso de un kernel gaussiano. Esto permite al modelo SVM mapear los datos a espacios de características de mayor dimensión utilizando la función de base radial, y no solo limitándose a hiperplanos lineales.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+set.seed(12345)
+svmModelKernel_Radial <- train(Class ~.,
+                        data = training_clases,
+                        method = "svmRadial",
+                        trControl = trainControl(method = "cv", number = 10),
+                        preProcess = c("center", "scale"),
+                        tuneLength = 10,
+                        prob.model = TRUE) 
+svmModelKernel_Radial
+
+plot(svmModelKernel_Radial)
+
+predictions_svmK_radial <- predict(svmModelKernel_Radial, newdata = testing_clases)
+predictions_svmK_radial
+
+probabilities_svm_kernel_radial <- predict(svmModelKernel_Radial, newdata = testing_clases, type = "prob")
+probabilities_svm_kernel_radial
+```
+
+### SVM-Kernel de base lineal
+Si bien hemos probado con un kernel gaussiano tambien puede resultar intersante implementar una version mas "simple" del mismo modelo ajustando esta vez a un kernel lineal
+
+```{r}
+set.seed(12345)                                                                 # seteo la semilla y creo el modelo
+svmModelKernel_Lineal <- train(Class ~.,
+                        data = training_clases,
+                        method = "svmLinear",                                   # esta vez uso un kenerl lineal
+                        trControl = trainControl(method = "cv", number = 10),
+                        preProcess = c("center", "scale"),
+                        tuneGrid = expand.grid(C = seq(0.1, 2, length = 20)),
+                        prob.model = TRUE) 
+svmModelKernel_Lineal
+
+plot(svmModelKernel_Lineal)                                                     # grafico
+
+predictions_svmK_linear <- predict(svmModelKernel_Lineal, newdata = testing_clases)  # saco las preds. de mi modelo en el conjunto de test
+predictions_svmK_linear
+
+probabilities_svm_kernel_linear <- predict(svmModelKernel_Lineal, newdata = testing_clases, type = "prob") # saco las probs.
+probabilities_svm_kernel_linear
+```
+
+### SVM-Kernel polinomico
+Esta vez haremos lo mismo implementando el otro modelo de kernel mas comun para comparar y constrastar posteriormente como responde el modelo frente al uso de diferentes kernels
+
+```{r}
+set.seed(12345)                                                                 # seteo la semilla y creo el modelo
+svmModelKernel_Polinomico <- train(Class ~.,
+                        data = training_clases,
+                        method = "svmPoly",                                   # esta vez uso un kenerl lineal
+                        trControl = trainControl(method = "cv", number = 10),
+                        preProcess = c("center", "scale"),
+                        tuneLength = 10 ,
+                        prob.model = TRUE) 
+svmModelKernel_Polinomico
+
+plot(svmModelKernel_Polinomico)                                                     # grafico
+
+predictions_svmK_polinomico <- predict(svmModelKernel_Polinomico, newdata = testing_clases)  # saco las preds. de mi modelo en el conjunto de test
+predictions_svmK_polinomico
+
+probabilities_svm_kernel_polinomico <- predict(svmModelKernel_Polinomico, newdata = testing_clases, type = "prob") # saco las probs.
+probabilities_svm_kernel_polinomico
+```
+
+
+
+
+## Cálculo precisión de los modelos
+
+### Matrices de confusión
+
+Las matrices de confusión nos permiten evaluar la precisión de los distintos modelos aplicados, comparando entre las predicciones del modelo y los valores reales. Para ello, utilizaremos la función **confusionMatrix**. Los datos que nos ofrecen las matrices de confusión son:
+
+-   **Acuracy**: La precisión del modelo.
+
+-   **Sensitivity**: La sensibilidad mide cuántas veces el modelo predijo correctamente la clase 1 entre las veces que realmente era clase 1.
+
+-   **Specificity**: La especificidad mide cuántas veces el modelo predijo correctamente que no era clase 1.
+
+-   **Pos Pred Value:** Indica el porcentaje de veces que el modelo predijo clase 1 correctamente cuando hizo esa predicción.
+
+-   **Neg Pred Value:** Mide cuántas veces el modelo predijo correctamente que no era clase 1 cuando realmente no era clase 1.
+
+-   **Balanced Accuracy:** es un promedio de la sensibilidad y especificidad.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+confusion_lda <- confusionMatrix(predicted_classes_lda, true_classes_lda)
+confusion_rda <- confusionMatrix(predicted_classes_rda, true_classes_rda)
+confusion_knn <- confusionMatrix(predictions_knn, testing_clases$Class)
+confusion_svmKernel_radial <- confusionMatrix(predictions_svmK_radial, testing_clases$Class)
+confusion_svmKernel_lineal <- confusionMatrix(predictions_svmK_linear, testing_clases$Class)
+confusion_svmKernel_polinomico <- confusionMatrix(predictions_svmK_polinomico, testing_clases$Class)
+confusion_Rforest <- confusionMatrix(predicciones_RF, testing_clases$Class)
+confusion_NBayes <- confusionMatrix(prediciones_NB, testing_clases$Class)
+
+
+cat("Confusion Matrix para LDA:\n")
+  print(confusion_lda)
+  
+cat("Confusion Matrix para RDA:\n")
+  print(confusion_rda)
+  
+cat("Confusion Matrix para k-NN:\n")
+  print(confusion_knn)
+  
+cat("Confusion Matrix para SVMKernel radial:\n")
+  print(confusion_svmKernel_radial)
+  
+cat("Confusion Matrix para SVMKernel lineal:\n")
+  print(confusion_svmKernel_lineal)
+  
+cat("Confusion Matrix para SVMKernel polinomico:\n")
+  print(confusion_svmKernel_polinomico)
+
+cat("Confusion Matrix para Random Forest: \n")
+  print(confusion_Rforest)
+
+cat("Confusion Matrix para Naive Bayes: \n")
+ 
+```
+
+### Curvas ROC
+
+Las curvas ROC nos permiten evaluar el rendimiento de los modelos, representando la sensibilidad del modelo vs especificidad. Utilizamos para representarlas la función roc() integrada en la librería pROC, una por cada modelo. Agregamos al plot las 4 curvas y les agregamos las leyendas correspondientes.
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+
+roc_lda <- roc(testing_clases$Class, probabilities_lda$posterior[, 2])
+auc_lda <- auc(roc_lda)
+cat("AUC LDA:", auc_lda, "\n")
+
+roc_rda <- roc(testing_clases$Class, probabilities_rda$posterior[, 2])
+auc_rda <- auc(roc_rda)
+cat("AUC RDA:", auc_rda, "\n")
+
+roc_knn <- roc(testing_clases$Class, probabilities_knn[,2])
+auc_knn <- auc(roc_knn)
+cat("AUC k-NN:", auc_knn, "\n")
+
+roc_svm_kernel_radial <- roc(testing_clases$Class, probabilities_svm_kernel_radial[,2])
+auc_svm_kernel_radial <- auc(roc_svm_kernel_radial)
+cat("AUC SVM Kernel:", auc_svm_kernel_radial, "\n")
+
+roc_svm_kernel_lineal <- roc(testing_clases$Class, probabilities_svm_kernel_linear[,2])
+auc_svm_kernel_lineal <- auc(roc_svm_kernel_lineal, )
+
+roc_svm_kernel_polinomico <- roc(testing_clases$Class, probabilities_svm_kernel_polinomico[,2])
+auc_svm_kernel_polinomico <- auc(roc_svm_kernel_polinomico, )
+
+roc_Rforest <- roc(testing_clases$Class, probabilities_RForest[,2])
+auc_Rforest <- auc(roc_Rforest)
+
+roc_NBayes <- roc(testing_clases$Class, probabilities_Nbayes[,2])
+auc_NBayes <- auc(roc_NBayes)
+
+
+plot(roc_lda, col = "deepskyblue2", main = "Curvas ROC", lwd = 2)
+plot(roc_rda, col = "darkolivegreen2", add = TRUE, lwd = 2)
+plot(roc_knn, col = "orange2", add = TRUE, lwd = 2)
+plot(roc_svm_kernel_radial, col = "firebrick1", add = TRUE, lwd = 2)
+plot(roc_svm_kernel_lineal, col = "purple", add = TRUE, lwd = 2)
+plot(roc_svm_kernel_polinomico, col = "pink", add = TRUE, lwd = 2)
+plot(roc_Rforest, col = "yellow", add = T, lwd = 2)
+plot(roc_NBayes, col = "darkblue", add = T, lwd = 2)
+
+lda_legend <- paste("AUC LDA:", round(auc_lda, 2))  
+rda_legend <- paste("AUC RDA:", round(auc_rda, 2))  
+knn_legend <- paste("AUC k-NN:", round(auc_knn, 2))  
+svmk_rad_legend <- paste("AUC SVM Kernel Radial:", round(auc_svm_kernel_radial, 2))  
+svmk_lin_legend <- paste("AUC SVM Kernel Lineal:", round(auc_svm_kernel_lineal, 2))
+svmk_pol_legend <- paste("AUC SVM Kernel Polinomico:", round(auc_svm_kernel_polinomico, 2))  
+RForest_legend <- paste("Random Forest:", round(auc_Rforest, 2))
+NBayes_legend <- paste("Naive Bayes:", round(auc_NBayes, 2))
+
+
+legend("bottomright", legend = c(lda_legend, rda_legend, knn_legend, svmk_rad_legend,svmk_lin_legend,svmk_pol_legend,RForest_legend,NBayes_legend),
+       col = c("deepskyblue2","darkolivegreen2", "orange2","firebrick1","purple","pink","yellow","darkblue"), lwd = 2, cex = 0.5)
+```
+
+
+### --- Random Forest ---
+
+```{r}
+Random_Forest.model <- randomForest(Class ~.,
+                                    data = training_clases,
+                                    ntree = 200)
+Random_Forest.model
+```
+
+ El error OOB (Out of bag) es de un solo 1.25%, lo que quiere decir que tansolo este porcentaje fue excluido en la construccion de los arboles y se utilizaron para evaluar la capacidad de generalizacion del modelo
+
+### --- Predicciones, precision, probabilidades y obtencion de las variables mas importantes para el modelo ----
+
+```{r}
+ # Realizo las predicciones
+predicciones_RF <- predict(Random_Forest.model, newdata = testing_clases)
+
+
+# Saco las probabilidades
+probabilities_RForest<- predict(Random_Forest.model, newdata = testing_clases, type = "prob") # saco las probs.
+invisible(probabilities_RForest)
+
+ # Evaluo la precision
+accuracy_rf <-sum(predicciones_RF ==testing_clases$Class)/nrow(testing_clases)
+print(paste("Prediccion del modelo Random Forest:" , accuracy_rf))
+```
+La prediccion es del 100%, lo que podria ser un indicio de sobreajuste
+
+```{r}
+# Obtener la importancia de las variables
+
+var_import <- importance(Random_Forest.model)
+var_import <- as.data.frame(var_import)
+var_import <- var_import[order(var_import[, "MeanDecreaseGini"], decreasing = TRUE),]
+print(var_import)
+
+
+varImpPlot(Random_Forest.model)
+```
+Las variables que aparerecen mas arriba son las mas influyentes y las mas importantes para la prediccion
+
+
+### ---- Naive-Bayes ---
+
+```{r}
+Naive_bayes <- naiveBayes(Class ~ ., data = training_clases)
+#Naive_bayes
+
+```
+
+### --- Predicciones, probabilidades y precision  para el modelo ----
+
+```{r}
+prediciones_NB <- predict(Naive_bayes, testing_clases)
+prediciones_NB
+
+probabilities_Nbayes <- predict(Naive_bayes, newdata = testing_clases, type = "raw")
+probabilities_Nbayes
+
+precicsion_NB <- sum(prediciones_NB == testing_clases$Class) / nrow(testing_clases)
+cat("Accuracy:", precicsion_NB)
+```
+ 
+ Precision del 98% para el modelo Naive-Bayes
+ 
+ 
+### ---- Obtener parametros F1-Score ----
+
+
+
+```{r}
+# Ejecutandolo desde el overall$byClass["F1"] me da valor NA, asi que lo hare manualmente 
+
+F1_lda <- mean(confusion_lda$byClass[,7])
+F1_rda <- mean(confusion_rda$byClass[,7])
+F1_kNN <- mean(confusion_knn$byClass[,7])
+F1_SVM_radial <- mean(confusion_svmKernel_radial$byClass[,7])
+F1_SVM_lineal <- mean(confusion_svmKernel_lineal$byClass[,7])
+F1_SVM_polinomico <- mean(confusion_svmKernel_polinomico$byClass[,7])
+F1_RForest <- mean(confusion_Rforest$byClass[,7])
+F1_NBayes <- mean(confusion_NBayes$byClass[,7])
+
+
+F1_df <- data.frame(
+  LDA=F1_lda,
+  RDA=F1_rda,
+  kNN=F1_kNN,
+  SVM_radial=F1_SVM_radial,
+  SVM_lineal=F1_SVM_lineal,
+  SVM_polinomico=F1_SVM_polinomico,
+  Random_Forest=F1_RForest,
+  Naive_Bayes=F1_NBayes
+)
+
+F1_df
+
+
+F1_long <- data.frame(Modelo = names(F1_df), F1_Score = as.numeric(t(F1_df)))
+
+print(F1_long)
+
+```
+
+ 
