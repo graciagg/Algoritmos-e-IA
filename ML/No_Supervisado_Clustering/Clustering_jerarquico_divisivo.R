@@ -1,3 +1,4 @@
+#Carga de datos y establecimiento de pwd#
 rm(list=ls())
 
 path <- "/Users/vic/Library/CloudStorage/GoogleDrive-vdelaopascual@gmail.com/Mi unidad/MU en Bioinformática (UNIR 2023)/Actividades (AAAA-MM-DD)/Actividad 1_junio2024 update"
@@ -25,7 +26,7 @@ library(cluster)
 diana_euclidean <- diana(df_genes_scale, metric = "euclidean", stand = FALSE) # ideal para datos donde las distancias más pequeñas
 diana_manhattan <- diana(df_genes_scale, metric = "manhattan", stand = FALSE) # ideal para datos con diferentes escalas o datos categóricos
 
-
+#Graficamos ambos tipos de clustering
 colors <- rainbow(5)
 clust_diana_euclidean <- fviz_dend(diana_euclidean, 
                                    cex = 0.5, 
