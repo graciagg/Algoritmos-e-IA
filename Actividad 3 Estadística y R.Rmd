@@ -43,15 +43,7 @@ genes <- grep("AQ_", colnames(df), value = TRUE)
 genes_df <- df[, genes]
 any(is.na(genes_df))
 
-
-
-
-
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
-
-
 
 
 ### ---- 1.	Comprobar la normalidad de los genes y realizar una interpretación de los resultados obtenidos ----
@@ -139,3 +131,80 @@ print(tabla1)
 ```
 
 
+### ----  2. 	PCA ----
+
+### ----  2.1. Aplicación del PCA y elecciones de componentes principales ----
+
+```{r}
+
+pca_genes <- prcomp(genes_df, scale = TRUE)
+
+names(pca_genes)
+
+head(pca_genes$rotation)[, 1:5]
+dim(pca_genes$rotation)
+
+head(pca_genes$x)[,1:5]
+
+# Desviación estandar de cada componente principal
+pca_genes$sdev
+
+# Varianza explicada por cada componente
+
+pca_genes$sdev^2
+summary(pca_genes)
+
+## Eleccion del número de componentes principales
+
+# Scree plot: Una forma es generando un scree plot que represente los eigenvalores ordenador de mayor a menor. Con la función fviz_screeplot() del paquete factoextra podemos obtener esta representación, sin importar qué función hemos utilizado para generar los componentes principales.
+
+fviz_screeplot(pca_genes, addlabels = TRUE, ylim = c(0, 20))
+
+# Contribución de variables: Top 10 variables
+
+fviz_contrib(pca_genes, choice = "var", axes = 1, top = 10) #La línea roja discontinua indica el valor medio de contribución.
+
+# Proporción de varianza explicada y acumulada
+
+PVE <- 100*pca_genes$sdev^2/sum(pca_genes$sdev^2)
+PVE
+
+par(mfrow = c(1,2))
+
+plot(PVE, type = "o", 
+     ylab = "PVE", 
+     xlab = "Componente principal", 
+     col = "blue")
+plot(cumsum(PVE), type = "o", 
+     ylab = "PVE acumulada", 
+     xlab = "Componente principal", 
+     col = "brown3")
+```
+
+### ----  2.2. Aplicación del PCA y elecciones de componentes principales ----
+
+```{r}
+# Representación de las observaciones
+
+library(factoextra)
+
+fviz_pca_ind(pca_genes, geom.ind = "point", 
+             col.ind = "#FC4E07", 
+             axes = c(1, 2), 
+             pointsize = 1.5) 
+
+# Representación de las variables
+
+fviz_pca_var(pca_genes, col.var = "cos2", 
+             geom.var = "arrow", 
+             labelsize = 2, 
+             repel = FALSE)
+
+var <- get_pca_var(pca_genes)
+var
+
+# Biplot
+
+biplot(pca_genes, scale = 0, cex = 0.5, col = c("dodgerblue3", "deeppink3"))
+
+```
