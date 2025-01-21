@@ -1,0 +1,52 @@
+---
+title: "Actividad 3 Estadística y R"
+author: "Gorka Suárez González"
+date: "2025-01-21"
+output: html_document
+---
+
+```{r}
+
+rm(list = ls()) 
+
+library(moments)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(car)
+library(gtsummary)
+library(gt)
+library(patchwork)
+library(stats)
+library(factoextra)
+library(pheatmap)
+
+
+```
+
+Seleccionamos el directorio y cargamos la base de datos “Dataset expresión genes” con la que trabajaremos durante la actividad. Con la función any(is.na(df)) comprobamos que no haya missings en los datos proporcionados.
+
+```{r}
+
+path <- "~/Desktop/UNIR/Estadística y R para Ciencias de la Salud/Actividades /Actividad 3"
+setwd(path)
+df <- read.csv("Dataset expresion genes.csv")
+View(df)
+any(is.na(df))
+
+```
+
+
+```{r}
+
+genes <- grep("AQ_", colnames(df), value = TRUE)
+genes_df <- df[, genes]
+any(is.na(genes_df))
+
+
+
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
