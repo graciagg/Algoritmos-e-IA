@@ -50,3 +50,92 @@ any(is.na(genes_df))
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+
+### ---- 1.	Comprobar la normalidad de los genes y realizar una interpretación de los resultados obtenidos ----
+
+                                             Comprobacion de la normalidad
+                        
+```{r}
+nombre_genes<-colnames(genes_df) 
+resultados<-data.frame(gen=nombre_genes,p_valor=numeric((length(genes_df))))
+
+```
+
+Gen sera igual a los elementos contenidos en el vector nombre_genes
+ valor_p de momento la creo vacia pero establezco su longitud para que sea la misma que elementos tiene el vector nomre_genes
+
+ Uso de notacion cientifica con 3 cifras significativas debido a los valores tan bajos obtenidos
+ En caso de hacer  "scientific = F", aun cogiendo 5 cifras seguiria siendo 0 que visualmente queda peor
+
+
+ Principios del Shapiro Test
+   H0 si p_value > = 0.05 -> Asumo normalidad 
+   H1 si p_value < 0.05   -> Asumo que no hay normalidad en mis datos
+   
+   
+```{r}
+for (i in 1:length(nombre_genes)) { 
+  normalidad <- shapiro.test(df[[nombre_genes[i]]])
+  resultados[i, "p_valor"] <- signif(normalidad$p.value,3) 
+}
+
+
+resultados$interpretacion <- numeric(length(genes)) # Creo la columna vacia para la interpretacion
+resultados$p_valor<- as.numeric(resultados$p_valor)
+
+# Añadir al dataframe una columna donde se interprete la prueba de normalidad y otra donde se especifique el tipo de test usado
+
+
+for (i in 1:nrow(resultados)) {
+  resultados[i, "interpretacion"] <- ifelse(resultados$p_valor[i] < 0.05, "no presenta normalidad", "normalidad")
+}
+
+
+resultados$test<-numeric(length(genes)) # Creo la columna vacia para el tipo de test usado
+
+for (i in 1:nrow(resultados)){
+  resultados[i, "test"]<-  (" Shapiro Test")
+}
+
+
+```
+
+
+### ---- 1.2	Creacion de la tabla 1. ----
+ (Al ejecutar el siguiente chunk aparecen 2 objetos *shiny.tag*, el importante es el segundo que es el que mas completo esta)
+
+```{r}
+resultados %>%
+  gt()
+
+
+# Aplicar estilos al cuerpo de la tabla
+
+tabla1 <- resultados %>%
+  gt() %>%
+  tab_style(
+    style = cell_fill(color = "lightblue"),  
+    locations = cells_body(
+      columns = "gen"                       
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(color = "red"),     
+    locations = cells_body(
+      columns = "interpretacion",           
+      rows = interpretacion == "no presenta normalidad"              
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_header(title = md("**Tabla 1**"), subtitle = md("**Comprobar normalidad de los genes**") )
+
+print(tabla1)
+```
+
+
