@@ -16,9 +16,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ### ---- Análisis de un conjunto de datos de origen biológico mediante técnicas de machine learning supervisadas y no supervisadas ---- ###
 
 ### ---- Pasos previos ----
-### ---- 0. Cargar librerias e instalar librerias ---- 
+### ---- 0. Cargar e instalar librerias ---- 
 
-```{r}
+```{r warning=FALSE}
 rm(list = ls())                     # Limpieza inicial del entorno
 
 #install.packages("e1071")
@@ -26,6 +26,7 @@ rm(list = ls())                     # Limpieza inicial del entorno
 #install.packages("glmnet")
 #install.packages("rpart.plot")
 library(dplyr)
+library(factoextra)
 library(glmnet)                     # ElasticNet
 library(tidyverse)
 library(Rtsne)
@@ -45,13 +46,12 @@ library(e1071)                      # Naive-Bayes
 
 # ---- 0.1 Pasos previos : Asignar dierctorio y cargar los datos y librerias ----
 
- Al ser 5 integrantes en el equipo se establece un "path" para cada uno, asi se facilita el trabajo en grupo
- 
-YA NO HACE FALTA: Si trabajas desde el repo de git, tienes los datos en la misma carpeta
+Al ser 5 integrantes en el equipo se establece un "path" para cada uno, así se facilita el trabajo en grupo
+
 ```{r}
 'path_Maria.Luisa <-
 path_Sara <-'
-path_Gracia <-
+path_Gracia <- "C:\\Users\\graci\\Documents\\BIOINFORMATICA_UNIR\\gitlab_repo\\Algoritmos-e-IA"
 path_Guillermo <- "C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3"
 path_Gorka <- 
 
@@ -80,10 +80,9 @@ any(is.na(df))
 df_scale <- df[,sapply(df, is.numeric)]
 df_scale <-scale(df_scale)
 scaled_df <- as.data.frame(df_scale)
-scaled_df$Class <- clases$Clase
 ```
 
- Veo que no hay ningun NA, por lo que no tenemos que imputar ningún dato. Escalamos los datos y guardamos en un nuevo df llamado df_scale 
+No hay ningun NA, por lo que no tenemos que imputar ningún dato. Escalamos los datos y guardamos en un nuevo df llamado df_scale 
 
 
 # 1. Reducción de la dimensionalidad
@@ -101,7 +100,7 @@ varianza.acumulada <- cumsum(varianza.explicada)
 n.pc <- min(which(varianza.acumulada > 0.9))
 ```
 
-Graficamos resultado
+Graficamos el resultado
 ```{r}
 x_label <- paste0(paste("PC1", round(varianza.explicada[1] * 100, 2)), "%")
 y_label <- paste0(paste("PC2", round(varianza.explicada[2] * 100, 2)), "%")
@@ -118,7 +117,7 @@ Solamente separa el grupo AGH, por lo que asumimos que los datos no son linealme
 
 
 ### 1.2. t-SNE
-Probamos con este por que, al preservar las distancias locales en el nuevo espacio, puede ser útil para aplicar métodos de ML después, ya que no deforma tanto los datos, solamente los aplana.
+Probamos con este algoritmo por que, al preservar las distancias locales en el nuevo espacio, puede ser útil para aplicar métodos de ML después, ya que no deforma tanto los datos, solamente los aplana.
 
 ```{r}
 tsne <- Rtsne(X=scaled_df)
@@ -134,14 +133,16 @@ theme(panel.grid.major = element_line(color = "gray90"), panel.grid.minor = elem
 panel.background = element_rect(fill = "gray95"), plot.title=element_text(hjust=0.5))
 ```
 
-```{r}
-##### 2.CLUSTERIZACIÓN
-matriz_dist<-dist(tsne_result) #Creamos la matriz de distancias cogiendo como base de datos la obtenida en 
-                              #el método óptimo de reducción de dimensionalidad
 
-#Implementamos métodos jerárquicos debido a que los no jerárquicos son más útiles en dataset pequeños.
-#Elegimos los modelos complete y ward ya que al hacer diversas pruebas son los que muestran unos clústers más definidos
-#y proporcionados. 
+##### 2.CLUSTERIZACIÓN
+Creamos la matriz de distancias cogiendo como base de datos la obtenida en el método óptimo de reducción de dimensionalidad
+```{r}
+matriz_dist<-dist(tsne_result)
+```
+
+Elegimos los modelos complete y ward ya que al hacer diversas pruebas son los que muestran unos clústers más definidos y proporcionados.
+
+```{r}
 cluster_modelo_complete<-hclust(matriz_dist, method="complete")
 cluster_modelo_ward<-hclust(matriz_dist, method="ward.D")
 
@@ -167,15 +168,16 @@ graphic_cluster_complete<-fviz_dend(cluster_modelo_complete,
 grid.arrange(graphic_cluster_ward, graphic_cluster_complete)
 
 #Podemos probar a realizar un método No jerárquico (K-means):
-fviz_nbclust(tsne_result, kmeans, method = "wss")     #Comprobamos el número de k más adecuado
+fviz_nbclust(tsne_result, kmeans, method = "wss") + geom_vline(linetype = 3, xintercept = 4)    #Comprobamos el número de k más adecuado
 
-kmeans.result<-kmeans(tsne_result, centers = 3, iter.max=100)
+kmeans.result<-kmeans(tsne_result, centers = 4, iter.max=100)
 
 fviz_cluster(kmeans.result, tsne_result)    #Graficamos
-
-#Como suponíamos al principio de este apartado, al haber tantos datos a pesar de haber aplicado el modelo de 
-#reducción de dimensionalidad, los datos se encuentran muy amontados y no aportan información útil en este método.
 ```
+Como podemos ver en el gráfico y aplicando "la regla del codo", el número óptimo de clusters son 4.
+Al utilizar los datos obtenidos del segundo método de reducción de dimensionalidad, la distribución de las observaciones sobre el plano es la misma que la obtenida con t-SNE, por lo que conocemos las clases de cada observación representada. 
+Se puede observar que agrupa las clases CGC y HPB, lo que plantea un futuro estudio de la relación de ambas clases.
+
 
 # 1. Métodos supervisados
 
@@ -188,7 +190,7 @@ Transformamos en factor la variable "Class" de nuestros datos. Fijamos una semil
 Creamos la fórmula formula_clases sumando cada variable. Esta fórmula será necesaria posteriormente para aplicar los métodos supervisados.
 
 ```{r include=FALSE}
-
+scaled_df$Class <- clases$Clase                  # Por comodidad, incluimos la variable a predecir en el df
 colnames(scaled_df)                              # Veo el nombre de las columnas
 scaled_df$Class <- as.factor(scaled_df$Class)    # Factorizo mi variable de interes
 
@@ -276,9 +278,11 @@ length(true_classes_rda)
 probabilities_rda <- predict(rda_model, newdata = testing_clases, type = "prob")
 
 ```
+
+
 ### k-NN
 
-El k-NN es un método de aprendizaje supervisado simple tanto en comprensión como en implementación, eficaz para conjuntos de datos pequeños y bien separados. Calcula en primer lugar las instancias k en datos existentes que sean lo más similares posibles (vecinos más cercanos) a los nuevos datos, para posteriormente usar esas etiquetas en los vecinos más cercanos para predecir la etiqueta de nuevos datos. Una de las principales desventajas es encontrar el valor de k óptimo: un valor de k alto puede sesgar el aprendizaje con el riego de ignorar patrones pequeños; un valor bajo permite una mayor influencia de los datos con ruido o *outliners*. El valor k óptimo se encuentra entre estos 2 extremos.
+El k-NN es un método de aprendizaje supervisado simple tanto en comprensión como en implementación, eficaz para conjuntos de datos pequeños y bien separados. Calcula en primer lugar las instancias k en datos existentes que sean lo más similares posibles (vecinos más cercanos) a los nuevos datos, para posteriormente usar esas etiquetas en los vecinos más cercanos para predecir la etiqueta de nuevos datos. Una de las principales desventajas es encontrar el valor de k óptimo: un valor de k alto puede sesgar el aprendizaje con el riego de ignorar patrones pequeños; un valor bajo permite una mayor influencia de los datos con ruido o *outliers*. El valor k óptimo se encuentra entre estos 2 extremos.
 
 Cargamos en este caso las librerías **tidyverse** y **caret**. Esta última nos permite crear el modelo k-NN usando la función **train** y especificando el método "knn". Utilizamos la validación cruzada con 10 folds (subparticiones) y preprocesado con los datos mediante el centrado y escala. Aplicamos un tuneLength de 30: el modelo procesa 30 pruebas de k diferentes que podemos ver en el plot(knnModel), para la selección del k adecuado.
 
@@ -310,7 +314,6 @@ En este caso, utilizaremos el método **"svmRadial"** dentro de la función svm(
 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 
-set.seed(12345)
 svmModelKernel_Radial <- train(Class ~.,
                         data = training_clases,
                         method = "svmRadial",
@@ -333,7 +336,6 @@ probabilities_svm_kernel_radial
 Si bien hemos probado con un kernel gaussiano tambien puede resultar intersante implementar una version mas "simple" del mismo modelo ajustando esta vez a un kernel lineal
 
 ```{r}
-set.seed(12345)                                                                 # seteo la semilla y creo el modelo
 svmModelKernel_Lineal <- train(Class ~.,
                         data = training_clases,
                         method = "svmLinear",                                   # esta vez uso un kenerl lineal
@@ -356,7 +358,6 @@ probabilities_svm_kernel_linear
 Esta vez haremos lo mismo implementando el otro modelo de kernel mas comun para comparar y constrastar posteriormente como responde el modelo frente al uso de diferentes kernels
 
 ```{r}
-set.seed(12345)                                                                 # seteo la semilla y creo el modelo
 svmModelKernel_Polinomico <- train(Class ~.,
                         data = training_clases,
                         method = "svmPoly",                                   # esta vez uso un kenerl lineal
