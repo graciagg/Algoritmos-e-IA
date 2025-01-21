@@ -203,6 +203,16 @@ fviz_pca_var(pca_genes, col.var = "cos2",
 var <- get_pca_var(pca_genes)
 var
 
+# -- ESTAS DOS SON VARIACIONES DE LAS OTRAS, EN LAS DIAPOS EXPLICA MÁS O MENOS LOS SIGNIFICADOS --
+fviz_pca_ind(pca_genes, pointsize = "cos2",
+            pointshape = 21,
+            fill = "yellow",
+            repel = TRUE)
+
+fviz_pca_biplot(pca_genes, repel = TRUE,
+                col.var = "#2E9FDF", # Variables color
+                col.ind = "#696969" # Individuals color
+  )
 # Biplot
 
 biplot(pca_genes, scale = 0, cex = 0.5, col = c("dodgerblue3", "deeppink3"))
