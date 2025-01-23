@@ -595,4 +595,142 @@ print(F1_long)
 
 ```
 
+
+### ---- Preguntas teóricas ----
+
+### 1.	Procesamiento de los datos:
+
+ ¿Qué método habéis escogido para llevar a cabo la imputación de los datos? Razonad vuestra respuesta. 
+ ¿Habéis llevado a cabo algún otro tipo de procesamiento? Razonad vuestra respuesta.
+
+Lo primero fue, como siempre, establecr directorios personales para poder trabajar de forma continua.
+A continuacion, a la hora de importar los datos estos venían separados en 3 archivos:
+ 1. clases (formato.csv)
+ 2. gene_expresion (formato.csv)
+ 3. column_names (formato.txt)
+
+La forma en la que los hemos juntado ha sido primero cargar los 3 archivos, a continuacion para trabajar los valores faltantes hemos comprobado en que columnas sumaban "0" realizando la suma de sus valores y esas las hemos eliminado. Por ultimo, hemos adjuntado las clases a nuestro dataset.
+Como parte del proceso de "preprocesado" hemos comprobado si realmente ya no habia ningun valor NA y hemos hechos un escalado de nuestros datos
+
+
+###2.	Métodos no supervisados:
+
+¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de reducción de dimensionalidad?.
+
+ Hemos comenzado por el que quizas es uno de los algoritmos de reduccion mas usados en estos ambitos, el analisis de componentes principales (PCA), este  metodo es una técnica lineal de reducción de dimensionalidad cuyo objetivo es transformar un conjunto de datos en un nuevo conjunto de variables no    c  correlacionadas, llamadas componentes principales tratando de maximizar la varianza de los datos. Este metodo ademas de mostrar los resultados de una    forma clara y concisa ayuda a prevenir el overfitting en el modelo
+
+ El segundo metodo usado fue el t-SNE ya que, como dijimos anteriomente, este algoritmo preserva las distancias locales en el nuevo espacio y no deforma  tanto los datos. Tambien un motivo por el que usamos este algoritmo era por implementar un metodo lineal y uno no lineal. Este metodo pese a tener un    componente estocastico, captura muy bien las complejas relaciones polinómicas entre las características y general es muy eficiente a la hora de          identificar la estructura de los datos.
+
+ 
+
+¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de clusterización?
+
+En ambos casos, ¿qué aspectos positivos y negativos tienen cada una? 
+
+En el caso de la clusterización, ¿podéis afirmar con certeza que los clústeres generados son los mejores posibles? Razonad vuestra respuesta.
+
+ Pasando ya al aprendizaje no supervisado, lo primero fue realizar las clusterizacion. Dentro de los clusteres nos decantamos por usar en primer lugar    clusteres jerarquicos aglomerativos, los cuales se basan en un enfoque conocido como bottom-up, donde cada observación constituye su propio grupo, el    cual se va fusionando con otros 
+ 
+ Como linkage usamos:
+ 1. Complete: Maxima dismilitud: Mayor distancia  -> dendogramas equilibrado
+ 2. Var minima de Ward: Minima varianza total dentro de los clusteres --> suele dar buenos resultados
+
+ Pese a esta eleccion los dendogramas obtenidos, visualmente, no son relevantes ya que este metodo de clusterizacion funciona mejor con menos datos y     nuestra base de datos al poseer tantas variables y observaciones no se ajusta bien a este modelo
+ 
+ Despues aplicamos clusterizacion jerarquica kmean, este metodo asume que los puntos de datos se encuentran en grupos separados y no superpuestos. 
+ Esto significa que cada punto de datos pertenece solo a un grupo y que no existen grupos dentro de otros.
+ Como ventajas presenta que se trata de un método cuya implementación es sencilla y no se trata de un método computacionalmente costoso.
+ Sin embargo, al ser la eleccion del numero de centroides "arbitraria" pese a que usamos la "tecnica del codo" esto puede acarrear dificultades en el     proceso y en la interpretacion
+
+
+###3.	Métodos supervisados 
+
+¿Cuál es el motivo por el cual habéis seleccionado ambas técnicas de aprendizaje supervisado? 
+
+ En el apartado de aprendizaje supervisado implementamos un total de 8 metodos. Esto fue asi ya que cada algortimo se basa en unos principios diferentes  y cada uno tiene sus propias asunciones,de este modo podemos comparar las "accuracys" de distintos tipos de modelos
+ Los modelos usados han sido:
+ 
+ En cuanto al analisis discriminante usamos el LDA y el RDA
+ Despues pasamos a un k Nearest Neighbor, a un Suport Vector Machine donde implementamos 3 tipos de kernel (Gaussiano, Lineal y Polinomico) y por ultimo,  otros metodos "mas sencillos" como son el Random Forest como aplicacion del bagging y el Naive bayes
+
+¿Cuál ha dado mejores resultados a la hora de clasificar las muestras? 
+
+
+
+¿Habéis considerado oportuno implementar algún método de reducción de dimensionalidad para procesar los datos antes de implementarlos en dichas técnicas? ¿Por qué? 
+ 
+ Intentamos implementar una reduccion LASSO multinomial pero algo fallaba en el comando y no logramos hacerla bien, pero podria ser un enfoque curioso    para evitar colinealidad y variables "poco relevantes", sin embargo, el desempeño de los modelos con la totalidad de los datos ha sido bastante bueno
+
+
+¿Qué aspectos positivos y negativos tienen cada una de las técnicas que habéis escogido? 
+ 
+ 1. LDA:
+    Ventajas:
+    -No sufre problemas de inestabilidad
+    -Si el número de observaciones es bajo y la distribución de los predictores es aproximadamente normal en cada una de las clases, el LDA es más           estable que la regresión logística.
+
+    Desventajas:
+    -Se basa en la normalidad multivariante de las variables, existen otros enfoques más flexibles
+    
+2. RDA:
+    Ventajas:
+    -Mejora el análisis discriminante clásico al agregar una penalización a la matriz de covarianza, lo que ayuda a prevenir el sobreajuste
+    -Permite un modelo más robusto contra la multicolinealidad 
+    
+    Desventajas:
+    - Mas costoso computacionalmente
+    
+3. kNN:
+    Ventajas:
+    -Simple
+    -Rapido
+    -Adaptable
+    
+    Desventajas:
+    -"Lazy learner", no construye un modelo como tal
+    -Seleccion arbitraria del valor k
+    -Clasificacion lenta
+    -No puede tratar datos faltantes
+    -No funciona bien con datos desequilibrados
+
+4-5-6: SVM Suport Vector Machine:
+     Ventajas y desventajas:
+    -Cada uno de estos kernels tiene propiedades matemáticas y características diferentes, lo que los hace adecuados para diferentes tipos de problemas      de clasificación
+    -Kernel lineal solo admite hiperplanos lineales pero es mas rapido y menos costoso
+    -Kernel gaussiano pueda mapear los datos a espacios de características de mayor dimensión utilizando una función de base radial, es mas costoso          computacionalmente
+    -Kernel polinomico no se limita a hiperplanos lineales pero igual que el anterio es mas lento y mas costoso
+    
+7. Random Forest (bagging:
+    Ventajas: 
+    -Reducción de la varianza: al combinar múltiples modelos en un ensamble
+    -Mejora de la precisión: al promediar o combinar las predicciones de varios modelos
+    -Estable ante el ruido
+    
+    Desventajas:
+    -Costoso
+    -Riesgo de sobreajuste
+    -Dificultad para explicar el modelo final ya que combina varios modelos en un ensamblaje
+
+8. Naive Bayes:
+    Ventajas:
+    -Requiere una cantidad mínima de datos de entrenamiento
+    -No requiere normalizacio previa
+    -Eficiente y rapido
+    -Maneja varaibles categoricas
+    -Buen rendimiento con datos de alta dimensionalidad
+    
+    Desventajas:
+    -Se basa en la suposicion de independencia entre varaibles
+    -Sensible a outliers y valores faltantes
+   
+   
+    
+###4.	De estas cuatro opciones, ¿qué tipo de arquitectura de deep learning sería la más adecuada para procesar datos de expresión génica? 
+
+a) Red de perceptrones (multiperceptron layers).
+b) Redes convolucionales.
+c) Redes recurrentes.
+d) Redes de grafos.
+
+
  
