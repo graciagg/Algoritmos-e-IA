@@ -62,8 +62,8 @@ setwd(path_Guillermo)
 Cargar los datos y eliminar las columnas que no estén solo a 0
 ```{r}
 
-clases <- read.csv("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\classes.csv", sep = ";", col.names = c("SampleID","Clase"))                                                 # Cargo el csv "clases" 
-df <- read.csv("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\gene_expression.csv", sep = ";", col.names = read_lines("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\column_names.txt"), row.names = clases$SampleID) # cargo mi dataframe de trabajo
+clases <- read.csv("classes.csv", sep = ";", col.names = c("SampleID","Clase"))                                                 # Cargo el csv "clases" 
+df <- read.csv("gene_expression.csv", sep = ";", col.names = read_lines("column_names.txt"), row.names = clases$SampleID) # cargo mi dataframe de trabajo
 
 sumas <- colSums(df)                                                                         # sumo los datos por columnas
 columnascero <- names(sumas[sumas==0])                                                       # veo cuantas sumas son == 0
