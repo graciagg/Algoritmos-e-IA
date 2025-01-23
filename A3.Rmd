@@ -377,8 +377,72 @@ probabilities_svm_kernel_polinomico <- predict(svmModelKernel_Polinomico, newdat
 probabilities_svm_kernel_polinomico
 ```
 
+### --- Random Forest ---
+
+```{r}
+Random_Forest.model <- randomForest(Class ~.,
+                                    data = training_clases,
+                                    ntree = 200)
+Random_Forest.model
+```
+
+ El error OOB (Out of bag) es de un solo 1.25%, lo que quiere decir que tansolo este porcentaje fue excluido en la construccion de los arboles y se utilizaron para evaluar la capacidad de generalizacion del modelo
+
+### --- Predicciones, precision, probabilidades y obtencion de las variables mas importantes para el modelo ----
+
+```{r}
+ # Realizo las predicciones
+predicciones_RF <- predict(Random_Forest.model, newdata = testing_clases)
 
 
+# Saco las probabilidades
+probabilities_RForest<- predict(Random_Forest.model, newdata = testing_clases, type = "prob") # saco las probs.
+invisible(probabilities_RForest)
+
+ # Evaluo la precision
+accuracy_rf <-sum(predicciones_RF ==testing_clases$Class)/nrow(testing_clases)
+print(paste("Prediccion del modelo Random Forest:" , accuracy_rf))
+```
+La prediccion es del 100%, lo que podria ser un indicio de sobreajuste
+
+```{r}
+# Obtener la importancia de las variables
+
+var_import <- importance(Random_Forest.model)
+var_import <- as.data.frame(var_import)
+var_import <- var_import[order(var_import[, "MeanDecreaseGini"], decreasing = TRUE),]
+print(var_import)
+
+
+varImpPlot(Random_Forest.model)
+```
+Las variables que aparerecen mas arriba son las mas influyentes y las mas importantes para la prediccion
+
+
+### ---- Naive-Bayes ---
+
+```{r}
+Naive_bayes <- naiveBayes(Class ~ ., data = training_clases)
+#Naive_bayes
+
+```
+
+### --- Predicciones, probabilidades y precision  para el modelo ----
+
+```{r}
+prediciones_NB <- predict(Naive_bayes, testing_clases)
+prediciones_NB
+
+probabilities_Nbayes <- predict(Naive_bayes, newdata = testing_clases, type = "raw")
+probabilities_Nbayes
+
+precicsion_NB <- sum(prediciones_NB == testing_clases$Class) / nrow(testing_clases)
+cat("Accuracy:", precicsion_NB)
+```
+ 
+ Precision del 98% para el modelo Naive-Bayes
+ 
+ 
 
 ## Cálculo precisión de los modelos
 
@@ -493,72 +557,7 @@ legend("bottomright", legend = c(lda_legend, rda_legend, knn_legend, svmk_rad_le
 ```
 
 
-### --- Random Forest ---
 
-```{r}
-Random_Forest.model <- randomForest(Class ~.,
-                                    data = training_clases,
-                                    ntree = 200)
-Random_Forest.model
-```
-
- El error OOB (Out of bag) es de un solo 1.25%, lo que quiere decir que tansolo este porcentaje fue excluido en la construccion de los arboles y se utilizaron para evaluar la capacidad de generalizacion del modelo
-
-### --- Predicciones, precision, probabilidades y obtencion de las variables mas importantes para el modelo ----
-
-```{r}
- # Realizo las predicciones
-predicciones_RF <- predict(Random_Forest.model, newdata = testing_clases)
-
-
-# Saco las probabilidades
-probabilities_RForest<- predict(Random_Forest.model, newdata = testing_clases, type = "prob") # saco las probs.
-invisible(probabilities_RForest)
-
- # Evaluo la precision
-accuracy_rf <-sum(predicciones_RF ==testing_clases$Class)/nrow(testing_clases)
-print(paste("Prediccion del modelo Random Forest:" , accuracy_rf))
-```
-La prediccion es del 100%, lo que podria ser un indicio de sobreajuste
-
-```{r}
-# Obtener la importancia de las variables
-
-var_import <- importance(Random_Forest.model)
-var_import <- as.data.frame(var_import)
-var_import <- var_import[order(var_import[, "MeanDecreaseGini"], decreasing = TRUE),]
-print(var_import)
-
-
-varImpPlot(Random_Forest.model)
-```
-Las variables que aparerecen mas arriba son las mas influyentes y las mas importantes para la prediccion
-
-
-### ---- Naive-Bayes ---
-
-```{r}
-Naive_bayes <- naiveBayes(Class ~ ., data = training_clases)
-#Naive_bayes
-
-```
-
-### --- Predicciones, probabilidades y precision  para el modelo ----
-
-```{r}
-prediciones_NB <- predict(Naive_bayes, testing_clases)
-prediciones_NB
-
-probabilities_Nbayes <- predict(Naive_bayes, newdata = testing_clases, type = "raw")
-probabilities_Nbayes
-
-precicsion_NB <- sum(prediciones_NB == testing_clases$Class) / nrow(testing_clases)
-cat("Accuracy:", precicsion_NB)
-```
- 
- Precision del 98% para el modelo Naive-Bayes
- 
- 
 ### ---- Obtener parametros F1-Score ----
 
 
