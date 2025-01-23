@@ -59,7 +59,8 @@ setwd(path_Guillermo)
 ```
 ## ---- 0.2 Pasos previos : Cargar datos y comprobacion inicial ----
 
-Cargar los datos y eliminar las columnas que no estén solo a 0
+Cargamos los datos y comprobamos que ninguna columna nos de datos iguales a 0. En caso de tener variables con valores nulos, los excluiremos del df inicial.
+
 ```{r}
 
 clases <- read.csv("classes.csv", sep = ";", col.names = c("SampleID","Clase"))                                                 # Cargo el csv "clases" 
@@ -74,7 +75,7 @@ df$Class <- clases$Clase                                                        
 
 ```
 
- Preprocesado y comprobacion previa
+Preprocesado y comprobacion previa, con escalado de los datos.
 ```{r}
 any(is.na(df))
 df_scale <- df[,sapply(df, is.numeric)]
