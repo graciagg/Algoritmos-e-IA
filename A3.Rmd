@@ -53,7 +53,7 @@ Al ser 5 integrantes en el equipo se establece un "path" para cada uno, así se 
 path_Sara <-'
 path_Gracia <- "C:\\Users\\graci\\Documents\\BIOINFORMATICA_UNIR\\gitlab_repo\\Algoritmos-e-IA"
 path_Guillermo <- "C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3"
-path_Gorka <- 
+path_Gorka <- "~/Desktop/UNIR/Algoritmos e Inteligencia Artificial/Actividad 3"
 
 setwd(path_Guillermo)
 ```
