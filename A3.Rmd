@@ -469,7 +469,6 @@ confusion_rda <- confusionMatrix(predicted_classes_rda, true_classes_rda)
 confusion_knn <- confusionMatrix(predictions_knn, testing_clases$Class)
 confusion_svmKernel_radial <- confusionMatrix(predictions_svmK_radial, testing_clases$Class)
 confusion_svmKernel_lineal <- confusionMatrix(predictions_svmK_linear, testing_clases$Class)
-confusion_svmKernel_polinomico <- confusionMatrix(predictions_svmK_polinomico, testing_clases$Class)
 confusion_Rforest <- confusionMatrix(predicciones_RF, testing_clases$Class)
 confusion_NBayes <- confusionMatrix(prediciones_NB, testing_clases$Class)
 
@@ -489,9 +488,6 @@ cat("Confusion Matrix para SVMKernel radial:\n")
 cat("Confusion Matrix para SVMKernel lineal:\n")
   print(confusion_svmKernel_lineal)
   
-cat("Confusion Matrix para SVMKernel polinomico:\n")
-  print(confusion_svmKernel_polinomico)
-
 cat("Confusion Matrix para Random Forest: \n")
   print(confusion_Rforest)
 
@@ -523,9 +519,6 @@ cat("AUC SVM Kernel:", auc_svm_kernel_radial, "\n")
 roc_svm_kernel_lineal <- roc(testing_clases$Class, probabilities_svm_kernel_linear[,2])
 auc_svm_kernel_lineal <- auc(roc_svm_kernel_lineal, )
 
-roc_svm_kernel_polinomico <- roc(testing_clases$Class, probabilities_svm_kernel_polinomico[,2])
-auc_svm_kernel_polinomico <- auc(roc_svm_kernel_polinomico, )
-
 roc_Rforest <- roc(testing_clases$Class, probabilities_RForest[,2])
 auc_Rforest <- auc(roc_Rforest)
 
@@ -538,7 +531,6 @@ plot(roc_rda, col = "darkolivegreen2", add = TRUE, lwd = 2)
 plot(roc_knn, col = "orange2", add = TRUE, lwd = 2)
 plot(roc_svm_kernel_radial, col = "firebrick1", add = TRUE, lwd = 2)
 plot(roc_svm_kernel_lineal, col = "purple", add = TRUE, lwd = 2)
-plot(roc_svm_kernel_polinomico, col = "pink", add = TRUE, lwd = 2)
 plot(roc_Rforest, col = "yellow", add = T, lwd = 2)
 plot(roc_NBayes, col = "darkblue", add = T, lwd = 2)
 
@@ -546,14 +538,13 @@ lda_legend <- paste("AUC LDA:", round(auc_lda, 2))
 rda_legend <- paste("AUC RDA:", round(auc_rda, 2))  
 knn_legend <- paste("AUC k-NN:", round(auc_knn, 2))  
 svmk_rad_legend <- paste("AUC SVM Kernel Radial:", round(auc_svm_kernel_radial, 2))  
-svmk_lin_legend <- paste("AUC SVM Kernel Lineal:", round(auc_svm_kernel_lineal, 2))
-svmk_pol_legend <- paste("AUC SVM Kernel Polinomico:", round(auc_svm_kernel_polinomico, 2))  
+svmk_lin_legend <- paste("AUC SVM Kernel Lineal:", round(auc_svm_kernel_lineal, 2)) 
 RForest_legend <- paste("Random Forest:", round(auc_Rforest, 2))
 NBayes_legend <- paste("Naive Bayes:", round(auc_NBayes, 2))
 
 
-legend("bottomright", legend = c(lda_legend, rda_legend, knn_legend, svmk_rad_legend,svmk_lin_legend,svmk_pol_legend,RForest_legend,NBayes_legend),
-       col = c("deepskyblue2","darkolivegreen2", "orange2","firebrick1","purple","pink","yellow","darkblue"), lwd = 2, cex = 0.5)
+legend("bottomright", legend = c(lda_legend, rda_legend, knn_legend, svmk_rad_legend,svmk_lin_legend,RForest_legend,NBayes_legend),
+       col = c("deepskyblue2","darkolivegreen2", "orange2","firebrick1","purple","yellow","darkblue"), lwd = 2, cex = 0.5)
 ```
 
 
@@ -570,7 +561,6 @@ F1_rda <- mean(confusion_rda$byClass[,7])
 F1_kNN <- mean(confusion_knn$byClass[,7])
 F1_SVM_radial <- mean(confusion_svmKernel_radial$byClass[,7])
 F1_SVM_lineal <- mean(confusion_svmKernel_lineal$byClass[,7])
-F1_SVM_polinomico <- mean(confusion_svmKernel_polinomico$byClass[,7])
 F1_RForest <- mean(confusion_Rforest$byClass[,7])
 F1_NBayes <- mean(confusion_NBayes$byClass[,7])
 
@@ -581,7 +571,6 @@ F1_df <- data.frame(
   kNN=F1_kNN,
   SVM_radial=F1_SVM_radial,
   SVM_lineal=F1_SVM_lineal,
-  SVM_polinomico=F1_SVM_polinomico,
   Random_Forest=F1_RForest,
   Naive_Bayes=F1_NBayes
 )
@@ -655,7 +644,9 @@ En el caso de la clusterización, ¿podéis afirmar con certeza que los clúster
 
 ¿Cuál ha dado mejores resultados a la hora de clasificar las muestras? 
 
+Todos los métodos de aprendizaje supervisado nos han proporcionado muy buenos valores respecto a la sensibilidad, especificidad y exactitud, medidas a través de las matrices de confusión proporcionada por cada método. Metodos como el k-NN, LDA y RDA son los que mejores datos nos proporcionan. Estos buenos resultados también se ven reflejados en los F-score obtenidos.
 
+Las curvas ROC resultan poco representativas en este caso, ya que los métodos nos proporcionan resultados tan parecidos entre ellos que están se ven superpuestas unas con otras.
 
 ¿Habéis considerado oportuno implementar algún método de reducción de dimensionalidad para procesar los datos antes de implementarlos en dichas técnicas? ¿Por qué? 
  
