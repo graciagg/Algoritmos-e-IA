@@ -2,10 +2,10 @@
 Repositorio creado para recoger toda la información referente a las actividades grupales de Algoritmos e IA y Estadística y R
 
 Este repositorio está conformado por cuatro ramas: 
-1.- Main: Rama principal.
-2.- Actividad 3 Algoritmos e IA: Rama que recoge los datos y el Script en RMarkdown principal de la asignatura de Algoritmos de IA
-3.- Actividad 3 Estadística y R: Rama que recoge los datos y el Script en RMarkdown principal sobre el que se está trabajando. 
-4.- Scripts Algoritmos e IA: Recoge subcarpetas que contienen los scripts que conformar el archivo principal de la actividad. 
+1. Main: Rama principal.
+2. Actividad 3 Algoritmos e IA: Rama que recoge los datos y el Script en RMarkdown principal de la asignatura de Algoritmos de IA
+3. Actividad 3 Estadística y R: Rama que recoge los datos y el Script en RMarkdown principal sobre el que se está trabajando. 
+4. Scripts Algoritmos e IA: Recoge subcarpetas que contienen los scripts que conformar el archivo principal de la actividad. 
 
 # 1. Rama Main
 Contiene únicamente los docuemntos README y LICENSE. 
