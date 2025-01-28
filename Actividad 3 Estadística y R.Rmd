@@ -1,15 +1,18 @@
 ---
 title: "Actividad 3 Estadística y R"
-author: "Gorka Suárez González"
+author: "Equipo 1 UNIR"
 date: "2025-01-21"
 output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
 ```{r}
-
-rm(list = ls()) 
-
 library(moments)
+library(dplyr)
+library(tidyr)
 library(ggplot2)
 library(dplyr)
 library(gridExtra)
@@ -20,17 +23,15 @@ library(patchwork)
 library(stats)
 library(factoextra)
 library(pheatmap)
-
-
 ```
 
 Seleccionamos el directorio y cargamos la base de datos “Dataset expresión genes” con la que trabajaremos durante la actividad. Con la función any(is.na(df)) comprobamos que no haya missings en los datos proporcionados.
 
 ```{r}
-
+path_gracia <- "C:/Users/graci/Documents/BIOINFORMATICA_UNIR/Estadística y R para Ciencias de la Salud/Actividades/mubio02_act3"
 path <- "~/Desktop/UNIR/Estadística y R para Ciencias de la Salud/Actividades /Actividad 3"
-setwd(path)
-df <- read.csv("Dataset expresion genes.csv")
+setwd(path_gracia)
+df <- read.csv("Dataset expresion genes.csv", sep=',')
 View(df)
 any(is.na(df))
 
@@ -38,11 +39,10 @@ any(is.na(df))
 
 
 ```{r}
-
+# Creamos un df solamente con los genes para poder trabajar con ellos posteriormente
 genes <- grep("AQ_", colnames(df), value = TRUE)
 genes_df <- df[, genes]
 any(is.na(genes_df))
-
 ```
 
 
@@ -154,7 +154,7 @@ pca_genes$sdev
 pca_genes$sdev^2
 summary(pca_genes)
 
-## Eleccion del número de componentes principales
+## Elección del número de componentes principales
 
 # Scree plot: Una forma es generando un scree plot que represente los eigenvalores ordenador de mayor a menor. Con la función fviz_screeplot() del paquete factoextra podemos obtener esta representación, sin importar qué función hemos utilizado para generar los componentes principales.
 
@@ -218,3 +218,73 @@ fviz_pca_biplot(pca_genes, repel = TRUE,
 biplot(pca_genes, scale = 0, cex = 0.5, col = c("dodgerblue3", "deeppink3"))
 
 ```
+Para representar la tabla que nos piden:
+```{r}
+# 1. Sacamos cuartiles de cada componente a representar (2 componentes)
+terciles_PC1 <- quantile(pca_genes$x[, 1], probs = c(1/3, 2/3))
+terciles_PC2 <- quantile(pca_genes$x[, 2], probs = c(1/3, 2/3))
+
+# 2. Para cada observacion, tenemos que indicar en qué percentil caen en cada una de las componentes (PC1 y PC2)
+df$tercil_PC1 <- cut(pca_genes$x[, 1], breaks = c(-Inf, terciles_PC1, Inf), labels = c("t1", "t2", "t3"))
+df$tercil_PC2 <- cut(pca_genes$x[, 2], breaks = c(-Inf, terciles_PC2, Inf), labels = c("t1", "t2", "t3"))
+
+tabla2 <- data.frame()
+
+get_stats <- function(x) {
+  if (length(unique(x)) > 2 & all(!is.na(x))) {
+    # Si es paramétrico, usamos la media y la desviación estándar
+    return(c(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE)))
+  } else {
+    # Si no es paramétrico, usamos la mediana y el rango intercuartílico
+    return(c(median = median(x, na.rm = TRUE), IQR = IQR(x, na.rm = TRUE)))
+  }
+}
+
+# Crear la tabla descriptiva para PC1 y PC2
+for (pc in 1:2) {  # Para cada componente
+  for (tercil in c("t1", "t2", "t3")) { # Para cada tercil
+    # Subconjunto de datos para ese tercil y componente
+    subset_data <- pca_genes$x[df[paste0("tercil_PC", pc)] == tercil]
+    
+    # Obtener estadísticas descriptivas
+    stats <- get_stats(subset_data)
+    
+    # Guardar los resultados
+    resultados <- rbind(resultados, c(Componente = paste0("PC", pc), 
+                                      Tercil = tercil, 
+                                      stats))
+  }
+}
+
+# Dar formato a la tabla de resultados
+colnames(resultados) <- c("Componente", "Tercil", "Media/Mediana", "Desviación Estándar/IQR")
+
+# Mostrar la tabla resultante
+print(resultados)
+```
+
+
+```{r}
+df_long <- df %>%
+  pivot_longer(cols = starts_with("AQ_"),  # Cambia esto según el nombre de las columnas de tus genes
+               names_to = "Gene",
+               values_to = "Expression")
+
+tabla_resumen <- df_long %>%
+  tbl_summary(
+    by = "tercil_PC1",  # Agrupamos por terciles del PC1 (o 'tercil_PC2' si quieres hacerlo por PC2),
+    statistic = list(all_categorical() ~ "{n}"),
+    digits = all_continuous() ~ c(2, 2),
+    missing = "no"
+  ) %>%
+  add_p() 
+tabla_resumen
+```
+
+
+
+
+
+
+
+
