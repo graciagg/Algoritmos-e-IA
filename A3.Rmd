@@ -48,22 +48,23 @@ library(e1071)                      # Naive-Bayes
 
 Al ser 5 integrantes en el equipo se establece un "path" para cada uno, así se facilita el trabajo en grupo
 
-```{r}
+```{r message=FALSE}
 'path_Maria.Luisa <-
 path_Sara <-'
-path_Gracia <- "C:\\Users\\graci\\Documents\\BIOINFORMATICA_UNIR\\gitlab_repo\\Algoritmos-e-IA"
+path_Gracia <- "C:/Users/graci/Documents/BIOINFORMATICA_UNIR/gitlab_repo/Algoritmos-e-IA"
 path_Guillermo <- "C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3"
-path_Gorka <- 
+path_Gorka <- "~/Desktop/UNIR/Algoritmos e Inteligencia Artificial/Actividad 3"
 
-setwd(path_Guillermo)
+setwd(path_Gracia)
 ```
 ## ---- 0.2 Pasos previos : Cargar datos y comprobacion inicial ----
 
-Cargar los datos y eliminar las columnas que no estén solo a 0
+Cargamos los datos y comprobamos que ninguna columna nos de datos iguales a 0. En caso de tener variables con valores nulos, los excluiremos del df inicial.
+
 ```{r}
 
-clases <- read.csv("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\classes.csv", sep = ";", col.names = c("SampleID","Clase"))                                                 # Cargo el csv "clases" 
-df <- read.csv("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\gene_expression.csv", sep = ";", col.names = read_lines("C:\\Users\\Guille\\Desktop\\MASTER\\ASIGNATURAS\\PRIMER CUATRI\\IA\\actividades\\a3\\column_names.txt"), row.names = clases$SampleID) # cargo mi dataframe de trabajo
+clases <- read.csv("classes.csv", sep = ";", col.names = c("SampleID","Clase"))                                                 # Cargo el csv "clases" 
+df <- read.csv("gene_expression.csv", sep = ";", col.names = read_lines("column_names.txt"), row.names = clases$SampleID) # cargo mi dataframe de trabajo
 
 sumas <- colSums(df)                                                                         # sumo los datos por columnas
 columnascero <- names(sumas[sumas==0])                                                       # veo cuantas sumas son == 0
@@ -74,7 +75,7 @@ df$Class <- clases$Clase                                                        
 
 ```
 
- Preprocesado y comprobacion previa
+Preprocesado y comprobacion previa, con escalado de los datos.
 ```{r}
 any(is.na(df))
 df_scale <- df[,sapply(df, is.numeric)]
@@ -140,7 +141,7 @@ Creamos la matriz de distancias cogiendo como base de datos la obtenida en el m�
 matriz_dist<-dist(tsne_result)
 ```
 
-Elegimos los modelos complete y ward ya que al hacer diversas pruebas son los que muestran unos clústers más definidos y proporcionados.
+Elegimos los modelos complete y ward ya que al hacer diversas pruebas son los que muestran unos clusters más definidos y proporcionados.
 
 ```{r}
 cluster_modelo_complete<-hclust(matriz_dist, method="complete")
@@ -174,6 +175,7 @@ kmeans.result<-kmeans(tsne_result, centers = 4, iter.max=100)
 
 fviz_cluster(kmeans.result, tsne_result)    #Graficamos
 ```
+
 Como podemos ver en el gráfico y aplicando "la regla del codo", el número óptimo de clusters son 4.
 Al utilizar los datos obtenidos del segundo método de reducción de dimensionalidad, la distribución de las observaciones sobre el plano es la misma que la obtenida con t-SNE, por lo que conocemos las clases de cada observación representada. 
 Se puede observar que agrupa las clases CGC y HPB, lo que plantea un futuro estudio de la relación de ambas clases.
@@ -376,10 +378,72 @@ probabilities_svm_kernel_polinomico <- predict(svmModelKernel_Polinomico, newdat
 probabilities_svm_kernel_polinomico
 ```
 
+### Random Forest
+
+```{r}
+Random_Forest.model <- randomForest(Class ~.,
+                                    data = training_clases,
+                                    ntree = 200)
+Random_Forest.model
+```
+
+ El error OOB (Out of bag) es de un solo 1.25%, lo que quiere decir que tansolo este porcentaje fue excluido en la construccion de los arboles y se utilizaron para evaluar la capacidad de generalizacion del modelo
+
+Predicciones, precision, probabilidades y obtencion de las variables mas importantes para el modelo 
+
+```{r}
+ # Realizo las predicciones
+predicciones_RF <- predict(Random_Forest.model, newdata = testing_clases)
 
 
+# Saco las probabilidades
+probabilities_RForest<- predict(Random_Forest.model, newdata = testing_clases, type = "prob") # saco las probs.
+invisible(probabilities_RForest)
 
-## Cálculo precisión de los modelos
+ # Evaluo la precision
+accuracy_rf <-sum(predicciones_RF ==testing_clases$Class)/nrow(testing_clases)
+print(paste("Prediccion del modelo Random Forest:" , accuracy_rf))
+```
+La prediccion es del 100%, lo que podria ser un indicio de sobreajuste
+
+```{r}
+# Obtener la importancia de las variables
+
+var_import <- importance(Random_Forest.model)
+var_import <- as.data.frame(var_import)
+var_import <- var_import[order(var_import[, "MeanDecreaseGini"], decreasing = TRUE),]
+print(var_import)
+
+
+varImpPlot(Random_Forest.model)
+```
+Las variables que aparerecen mas arriba son las mas influyentes y las mas importantes para la prediccion
+
+
+### Naive-Bayes
+
+```{r}
+Naive_bayes <- naiveBayes(Class ~ ., data = training_clases)
+```
+
+Predicciones, probabilidades y precision  para el modelo:
+
+```{r}
+prediciones_NB <- predict(Naive_bayes, testing_clases)
+prediciones_NB
+
+probabilities_Nbayes <- predict(Naive_bayes, newdata = testing_clases, type = "raw")
+probabilities_Nbayes
+
+precicsion_NB <- sum(prediciones_NB == testing_clases$Class) / nrow(testing_clases)
+cat("Accuracy:", precicsion_NB)
+```
+ 
+Precision del 98% para el modelo Naive-Bayes
+ 
+ 
+
+# Cálculo precisión de los modelos
 
 ### Matrices de confusión
 
@@ -404,7 +468,6 @@ confusion_rda <- confusionMatrix(predicted_classes_rda, true_classes_rda)
 confusion_knn <- confusionMatrix(predictions_knn, testing_clases$Class)
 confusion_svmKernel_radial <- confusionMatrix(predictions_svmK_radial, testing_clases$Class)
 confusion_svmKernel_lineal <- confusionMatrix(predictions_svmK_linear, testing_clases$Class)
-confusion_svmKernel_polinomico <- confusionMatrix(predictions_svmK_polinomico, testing_clases$Class)
 confusion_Rforest <- confusionMatrix(predicciones_RF, testing_clases$Class)
 confusion_NBayes <- confusionMatrix(prediciones_NB, testing_clases$Class)
 
@@ -424,9 +487,6 @@ cat("Confusion Matrix para SVMKernel radial:\n")
 cat("Confusion Matrix para SVMKernel lineal:\n")
   print(confusion_svmKernel_lineal)
   
-cat("Confusion Matrix para SVMKernel polinomico:\n")
-  print(confusion_svmKernel_polinomico)
-
 cat("Confusion Matrix para Random Forest: \n")
   print(confusion_Rforest)
 
@@ -458,9 +518,6 @@ cat("AUC SVM Kernel:", auc_svm_kernel_radial, "\n")
 roc_svm_kernel_lineal <- roc(testing_clases$Class, probabilities_svm_kernel_linear[,2])
 auc_svm_kernel_lineal <- auc(roc_svm_kernel_lineal, )
 
-roc_svm_kernel_polinomico <- roc(testing_clases$Class, probabilities_svm_kernel_polinomico[,2])
-auc_svm_kernel_polinomico <- auc(roc_svm_kernel_polinomico, )
-
 roc_Rforest <- roc(testing_clases$Class, probabilities_RForest[,2])
 auc_Rforest <- auc(roc_Rforest)
 
@@ -473,7 +530,6 @@ plot(roc_rda, col = "darkolivegreen2", add = TRUE, lwd = 2)
 plot(roc_knn, col = "orange2", add = TRUE, lwd = 2)
 plot(roc_svm_kernel_radial, col = "firebrick1", add = TRUE, lwd = 2)
 plot(roc_svm_kernel_lineal, col = "purple", add = TRUE, lwd = 2)
-plot(roc_svm_kernel_polinomico, col = "pink", add = TRUE, lwd = 2)
 plot(roc_Rforest, col = "yellow", add = T, lwd = 2)
 plot(roc_NBayes, col = "darkblue", add = T, lwd = 2)
 
@@ -481,86 +537,18 @@ lda_legend <- paste("AUC LDA:", round(auc_lda, 2))
 rda_legend <- paste("AUC RDA:", round(auc_rda, 2))  
 knn_legend <- paste("AUC k-NN:", round(auc_knn, 2))  
 svmk_rad_legend <- paste("AUC SVM Kernel Radial:", round(auc_svm_kernel_radial, 2))  
-svmk_lin_legend <- paste("AUC SVM Kernel Lineal:", round(auc_svm_kernel_lineal, 2))
-svmk_pol_legend <- paste("AUC SVM Kernel Polinomico:", round(auc_svm_kernel_polinomico, 2))  
+svmk_lin_legend <- paste("AUC SVM Kernel Lineal:", round(auc_svm_kernel_lineal, 2)) 
 RForest_legend <- paste("Random Forest:", round(auc_Rforest, 2))
 NBayes_legend <- paste("Naive Bayes:", round(auc_NBayes, 2))
 
 
-legend("bottomright", legend = c(lda_legend, rda_legend, knn_legend, svmk_rad_legend,svmk_lin_legend,svmk_pol_legend,RForest_legend,NBayes_legend),
-       col = c("deepskyblue2","darkolivegreen2", "orange2","firebrick1","purple","pink","yellow","darkblue"), lwd = 2, cex = 0.5)
+legend("bottomright", legend = c(lda_legend, rda_legend, knn_legend, svmk_rad_legend,svmk_lin_legend,RForest_legend,NBayes_legend),
+       col = c("deepskyblue2","darkolivegreen2", "orange2","firebrick1","purple","yellow","darkblue"), lwd = 2, cex = 0.5)
 ```
 
 
-### --- Random Forest ---
 
-```{r}
-Random_Forest.model <- randomForest(Class ~.,
-                                    data = training_clases,
-                                    ntree = 200)
-Random_Forest.model
-```
-
- El error OOB (Out of bag) es de un solo 1.25%, lo que quiere decir que tansolo este porcentaje fue excluido en la construccion de los arboles y se utilizaron para evaluar la capacidad de generalizacion del modelo
-
-### --- Predicciones, precision, probabilidades y obtencion de las variables mas importantes para el modelo ----
-
-```{r}
- # Realizo las predicciones
-predicciones_RF <- predict(Random_Forest.model, newdata = testing_clases)
-
-
-# Saco las probabilidades
-probabilities_RForest<- predict(Random_Forest.model, newdata = testing_clases, type = "prob") # saco las probs.
-invisible(probabilities_RForest)
-
- # Evaluo la precision
-accuracy_rf <-sum(predicciones_RF ==testing_clases$Class)/nrow(testing_clases)
-print(paste("Prediccion del modelo Random Forest:" , accuracy_rf))
-```
-La prediccion es del 100%, lo que podria ser un indicio de sobreajuste
-
-```{r}
-# Obtener la importancia de las variables
-
-var_import <- importance(Random_Forest.model)
-var_import <- as.data.frame(var_import)
-var_import <- var_import[order(var_import[, "MeanDecreaseGini"], decreasing = TRUE),]
-print(var_import)
-
-
-varImpPlot(Random_Forest.model)
-```
-Las variables que aparerecen mas arriba son las mas influyentes y las mas importantes para la prediccion
-
-
-### ---- Naive-Bayes ---
-
-```{r}
-Naive_bayes <- naiveBayes(Class ~ ., data = training_clases)
-#Naive_bayes
-
-```
-
-### --- Predicciones, probabilidades y precision  para el modelo ----
-
-```{r}
-prediciones_NB <- predict(Naive_bayes, testing_clases)
-prediciones_NB
-
-probabilities_Nbayes <- predict(Naive_bayes, newdata = testing_clases, type = "raw")
-probabilities_Nbayes
-
-precicsion_NB <- sum(prediciones_NB == testing_clases$Class) / nrow(testing_clases)
-cat("Accuracy:", precicsion_NB)
-```
- 
- Precision del 98% para el modelo Naive-Bayes
- 
- 
-### ---- Obtener parametros F1-Score ----
-
-
+### ---- Obtener valores F1-Score ----
 
 ```{r}
 # Ejecutandolo desde el overall$byClass["F1"] me da valor NA, asi que lo hare manualmente 
@@ -570,7 +558,6 @@ F1_rda <- mean(confusion_rda$byClass[,7])
 F1_kNN <- mean(confusion_knn$byClass[,7])
 F1_SVM_radial <- mean(confusion_svmKernel_radial$byClass[,7])
 F1_SVM_lineal <- mean(confusion_svmKernel_lineal$byClass[,7])
-F1_SVM_polinomico <- mean(confusion_svmKernel_polinomico$byClass[,7])
 F1_RForest <- mean(confusion_Rforest$byClass[,7])
 F1_NBayes <- mean(confusion_NBayes$byClass[,7])
 
@@ -581,7 +568,6 @@ F1_df <- data.frame(
   kNN=F1_kNN,
   SVM_radial=F1_SVM_radial,
   SVM_lineal=F1_SVM_lineal,
-  SVM_polinomico=F1_SVM_polinomico,
   Random_Forest=F1_RForest,
   Naive_Bayes=F1_NBayes
 )
@@ -594,5 +580,137 @@ F1_long <- data.frame(Modelo = names(F1_df), F1_Score = as.numeric(t(F1_df)))
 print(F1_long)
 
 ```
+
+
+# ---- Preguntas teóricas ----
+
+# 1.	Procesamiento de los datos:
+
+### ¿Qué método habéis escogido para llevar a cabo la imputación de los datos? Razonad vuestra respuesta. ¿Habéis llevado a cabo algún otro tipo de procesamiento? Razonad vuestra respuesta.
+
+Lo primero fue, como siempre, establecer directorios personales para poder trabajar de forma continua.
+Para construir nuestro dataset partíamos de 3 archivos:
+ 1. clases (formato.csv)
+ 2. gene_expresion (formato.csv)
+ 3. column_names (formato.txt)
+
+Primero hemos leído los archivos .csv (teniendo en cuenta que los nombres de las columnas de nuestro dataset se encontraban en el fichero 'column_names').
+Para la limpieza y preprocesado de nuestros datos, hemos comprobado qué columnas tenían valores faltantes y las hemos eliminado de nuestro df (columnas que sumaban 0). También hemos comprobado que no teníamos datos faltantes, por lo que no hemos necesitado imputar ningún dato. Por último, hemos escalado nuestros datos para asegurarnos que, en los algoritmos posteriores, todas las variables tienen la misma importancia y evitar que las diferencias en sus escalas afectaran negativamente a los distintos modelos utilizados.
+
+
+
+# 2.	Métodos no supervisados:
+
+### ¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de reducción de dimensionalidad?.
+
+Hemos comenzado por el que quizás es uno de los algoritmos de reducción más usados en estos ámbitos, el análisis de componentes principales *(PCA)*. Este  método es una técnica lineal de reducción de dimensionalidad cuyo objetivo es transformar un conjunto de datos en un nuevo conjunto de variables no correlacionadas, llamadas componentes principales, tratando de maximizar la varianza de los datos. Este método además de mostrar los resultados de una forma clara y concisa, ayuda a prevenir el overfitting en el modelo.
+
+El PCA no pudo separar bien los grupos, por lo que asumimos que las relaciones entre clases no son lineales, y para el segundo método escogimos el *t-SNE* ya que, como dijimos anteriormente, este algoritmo preserva las distancias locales en el nuevo espacio y no deforma  tanto los datos. Este método, pese a tener un componente estocástico, captura muy bien las complejas relaciones polinómicas entre las características y general es muy eficiente a la hora de identificar la estructura de los datos.
+
+### ¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de clusterización? En ambos casos, ¿qué aspectos positivos y negativos tienen cada una? En el caso de la clusterización, ¿podéis afirmar con certeza que los clústeres generados son los mejores posibles?
+
+El primer método que utilizamos fueron los *clusters jerárquicos aglomerativos*, los cuales se basan en un enfoque conocido como bottom-up, donde cada observación constituye su propio grupo, y se va fusionando con el resto a medida que se va subiendo de nivel. Escogimos este método para identificar patrones de expresión génica similares entre las muestras.
+Como linkage usamos:
+ 1. Complete: Maxima dismilitud: Mayor distancia  -> dendogramas equilibrado
+ 2. Var minima de Ward: Minima varianza total dentro de los clusteres --> suele dar buenos resultados
+
+La mayor ventaja de este modelo radica en que no requiere un número predeterminado de clusters, ya que el propio método los va construyendo. Sin embargo, presenta algunos inconvenientes: computacionalmente es bastante costoso, y los grupos obtenidos se ven muy afectados por el ruido que puedan contener los datos.
+
+Después aplicamos *clusterización no-jerárquica k-means*. Este método asume que los datos se encuentran en grupos separados y no superpuestos. Esto significa que cada punto de datos pertenece a un solo grupo y no se engloban grupos dentro de otros. Al ser la elección del número de centroides arbitraria (basándonos en la técnica del codo), puede que no sea el más óptimo para detectar correctamente las relaciones entre pacientes, haciendo así más difícil obtener los mejores clusters posibles para nuestros datos.
+
+
+
+# 3.	Métodos supervisados 
+
+### ¿Cuál es el motivo por el cual habéis seleccionado ambas técnicas de aprendizaje supervisado? ¿Cuál ha dado mejores resultados a la hora de clasificar las muestras?
+
+En el apartado de aprendizaje supervisado implementamos un total de 8 métodos, ya que cada uno de los algoritmos utilizados se basa en unos principios diferentes. De este modo podemos comparar el performance de distintos modelos, y ver cuál se ajusta más a nuestros datos.
+
+Los modelos usados han sido:
+- Análisis discriminante lineal (LDA)
+- Análisis Discriminante Regularizado (RDA)
+- K Nearest Neighbor (K-NN)
+- Suport Vector Machine con 3 tipos de kernel (Gaussiano, Lineal y Polinómico)
+- Random Forest
+- Naive Bayes
+
+Todos los métodos de aprendizaje supervisado nos han proporcionado muy buenos resultados en cuanto a sensibilidad, especificidad y exactitud, medidas a través de las matrices de confusión proporcionada por cada método. 
+Los modelos que han obtenido los mejores resultados en todos los estadísticos han sido el k-NN, LDA y RDA.
+
+Las curvas ROC resultan poco representativas en este caso, ya que los métodos nos proporcionan resultados tan parecidos entre ellos que están se ven superpuestas unas con otras.
+
+###¿Habéis considerado oportuno implementar algún método de reducción de dimensionalidad para procesar los datos antes de implementarlos en dichas técnicas? ¿Por qué? 
+ 
+Intentamos implementar una reduccion LASSO multinomial pero algo fallaba en el comando y no logramos hacerla bien. Pensamos que podría ser un enfoque curioso para evitar colinealidad y variables "poco relevantes", sin embargo, el desempeño de los modelos con la totalidad de los datos ha sido bastante bueno.
+
+
+### ¿Qué aspectos positivos y negativos tienen cada una de las técnicas que habéis escogido? 
+ 
+ *1. LDA:*
+    Ventajas:
+    -No sufre problemas de inestabilidad
+    -Si el número de observaciones es bajo y la distribución de las variables predictoras es aproximadamente normal en cada una de las clases, el LDA es más estable que la regresión logística.
+    Desventajas:
+    -Se basa en la normalidad multivariante de las variables, existen otros enfoques más flexibles
+    
+*2. RDA:*
+    Ventajas:
+    -Mejora el análisis discriminante clásico al agregar una penalización a la matriz de covarianza, lo que ayuda a prevenir el sobreajuste
+    -Permite un modelo más robusto contra la multicolinealidad 
+    Desventajas:
+    -Más costoso computacionalmente
+    
+*3. kNN:*
+    Ventajas:
+    -Simple
+    -Rápido
+    -Adaptable
+    Desventajas:
+    -"Lazy learner", no construye un modelo como tal
+    -Selección arbitraria del valor k
+    -Clasificación lenta
+    -No puede tratar datos faltantes
+    -No funciona bien con datos desequilibrados
+
+*4-5-6: SVM Suport Vector Machine:*
+     Ventajas y desventajas:
+    -Cada uno de estos kernels tiene propiedades matemáticas y características diferentes, lo que los hace adecuados para diferentes tipos de problemas de clasificación
+    -Kernel lineal: solo admite hiperplanos lineales pero es mas rápido y menos costoso
+    -Kernel gaussiano: pueda mapear los datos a espacios de características de mayor dimensión utilizando una función de base radial, es más costoso computacionalmente
+    -Kernel polinomico: no se limita a hiperplanos lineales, pero igual que el anterior, es más lento y más costoso
+    
+*7. Random Forest:*
+    Ventajas: 
+    -Reducción de la varianza: al combinar múltiples modelos en un ensamble
+    -Mejora de la precisión: al promediar o combinar las predicciones de varios modelos
+    -Estable ante el ruido
+    Desventajas:
+    -Costoso
+    -Riesgo de sobreajuste
+    -Dificultad para explicar el modelo final ya que combina varios modelos en un ensamblaje
+
+*8. Naive Bayes:*
+    Ventajas:
+    -Requiere una cantidad mínima de datos de entrenamiento
+    -No requiere normalización previa
+    -Eficiente y rápido
+    -Maneja variables categóricas
+    -Buen rendimiento con datos de alta dimensionalidad
+    Desventajas:
+    -Se basa en la suposición de independencia entre variables
+    -Sensible a outliers y valores faltantes
+   
+   
+    
+# 4.	De estas cuatro opciones, ¿qué tipo de arquitectura de deep learning sería la más adecuada para procesar datos de expresión génica? 
+
+Generalmente, la opción más adecuada para procesar datos de expresión génica sería la *red de perceptrones*, ya que son muy adecuadas para aprender patrones complejos de relación entre variables, algo intrínseco en la naturaleza de este tipo de datos. Una de sus mayores ventajas es que pueden aprender tanto relaciones lineales como no lineales entre los genes y las clases (como en el dataset de esta actividad, por ejemplo, para clasificar tipos de cáncer según la expresion génica del paciente).
+
+El resto de redes presentadas están diseñadas para trabajar con otros tipos de datos:
+- Redes convolucionales: imágenes y otros datos espaciales
+- Redes recurrentes: datos temporales
+- Redes de grafos: datos que tienen conexiones entre elementos. 
+
+
 
  
