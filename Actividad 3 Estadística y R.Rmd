@@ -281,7 +281,36 @@ tabla_resumen <- df_long %>%
 tabla_resumen
 ```
 
+### ----  5. Implementar un modelo de regresión logística ----
 
+Tenemos que transformar la variable 'Extension' en binomial (si y no). Es decir, en caso de que haya metástatisis será 'si' y de ser regional o localizado será 'no'. Para el primer ejemplo, hemos cogido las variables sexo y edad, junto a los dos primeros componentes principales dividios en terciles. 
+
+```{r}
+
+df <- df %>%
+  mutate(extension = ifelse(extension == "metastasico", "Si", "No"))
+
+pca_df <- as.data.frame(pca_genes$x)
+
+for (i in 1:2) {  # Tomamos los 3 primeros componentes como ejemplo
+  pca_df[[paste0("PC", i, "_tercile")]] <- cut(pca_df[[paste0("PC", i)]], 
+                                               breaks = quantile(pca_df[[paste0("PC", i)]], probs = c(0, 1/3, 2/3, 1), na.rm = TRUE), 
+                                               include.lowest = TRUE, 
+                                               labels = c("Bajo", "Medio", "Alto"))
+}
+
+df_variables_interes <- df %>% select(extension, edad, sexo)
+
+datos_modelo <- cbind(df_variables_interes, pca_df)
+
+datos_modelo$extension <- as.factor(datos_modelo$extension)
+datos_modelo$sexo <- as.factor(datos_modelo$sexo)
+
+modelo_regresion <- glm(extension ~ PC1_tercile + PC2_tercile + edad + sexo, data = datos_modelo, family = binomial)
+
+summary(modelo_regresion)
+exp(cbind(OR = coef(modelo_regresion), confint(modelo_regresion)))
+```
 
 
 
