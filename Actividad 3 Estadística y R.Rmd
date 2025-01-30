@@ -134,9 +134,9 @@ print(tabla1)
 ### ----  2. 	PCA ----
 
 ### ----  2.1. Aplicación del PCA y elecciones de componentes principales ----
-
+### - Implementacion del modelo
 ```{r}
-
+# 1. Creacion del modelo
 pca_genes <- prcomp(genes_df, scale = TRUE)
 
 names(pca_genes)
@@ -152,18 +152,131 @@ pca_genes$sdev
 # Varianza explicada por cada componente
 
 pca_genes$sdev^2
-summary(pca_genes)
+summary(pca_genes)                      # A partir de esto puedo ver cuanto contribuye cada componente al modelo 
 
-## Elección del número de componentes principales
+```
 
-# Scree plot: Una forma es generando un scree plot que represente los eigenvalores ordenador de mayor a menor. Con la función fviz_screeplot() del paquete factoextra podemos obtener esta representación, sin importar qué función hemos utilizado para generar los componentes principales.
+### - Eleccion del numero de componentes principales mediante los eign values
+```{r}
+
+# Extraer los eignvalores con su varianza acumulativa (%)
+eign_values_df <-as.data.frame(get_eig(pca_genes))
+head(eign_values_df)
+```
+Tras analizar el df de los eign values vemos que el primer componente por si ya explica el 52% de la varianza
+Vemos tambien que cogiendo los 5 primeros componentes ya se explica el 70% de la var total por lo tanto este puede ser un numero adecuado de componentes con los que trabajar
+
+
+```{r}
+# Scree plot: Una forma es generando un scree plot que represente los eigenvalores ordenador de mayor a menor.
+# Con la función fviz_screeplot() del paquete factoextra podemos obtener esta representación, sin importar qué función hemos utilizado para generar los componentes principales
 
 fviz_screeplot(pca_genes, addlabels = TRUE, ylim = c(0, 20))
 
+```
+
+
+### - Contribucion y calidad de las variables al modelo
+```{r}
+# Graficas de variables
+var <- get_pca_var(pca_genes)        # A partir de esto podemos extraer informacion
+var 
+head(var$cor)                        # Contribuciones de las variables a los componentes principales
+head(var$cos2)                       # Calidad en el mapa de factores
+```
+ **cos2** --> representa la calidad, mayor cos2 = mayor calidad de la variable = más importante
+   **contrib** --> Contiene las contribuciones (en %) de las variables a los componentes principales 
+
+
+# - Contribucion
+```{r}
 # Contribución de variables: Top 10 variables
+# La línea roja discontinua indica valor medio de contribución.
 
-fviz_contrib(pca_genes, choice = "var", axes = 1, top = 10) #La línea roja discontinua indica el valor medio de contribución.
+contribucion_variables_dim1 <- fviz_contrib(pca_genes, choice = "var", axes = 1, top = 10)  
+contribucion_variables_dim1
+```
+De la grafica extraemos que las variables que mas contribuyen a la Dimension 1 son:
+(busca info de cada una)
 
+  - JAK1: Este gen desempeña un papel crucial en la expresión de genes que median la inflamación, la remodelación epitelial y la progresión del cáncer metastásico. Este gen es un componente clave de la respuesta inmune e inflamatoria de la interleucina-6 (IL-6)/JAK1/STAT3 
+  
+  - CCL5: Se ha demostrado que este gen participa en el desarrollo y propagación de las células cancerígenas, para ello, las células cancerígenas revierten la acción de este gen para usarlo en contra del paciente formando un microambiente supresor
+  
+  - SREBF1:Necesaria para la respuesta inmune innata en los macrófagos al regular el metabolismo lipídico
+  
+  - NFE2L2:Codifican proteínas involucradas en la respuesta a lesiones e inflamaciones, que incluye la producción de radicales libres.La activación de NFE2L2 se ha relacionado con la quimiorresistencia en modelos de líneas celulares. Recientemente, se ha descubierto que las mutaciones somáticas que activan NFE2L2, están asociadas con malos resultados en pacientes con cáncer de pulmón de células no pequeñas 
+  
+  - PTAFR :Este gen codifica un receptor acoplado a proteína G de siete transmembrana para el factor activador de plaquetas (PAF), el PAF es un fosfolípido que desempeña un papel importante en la transformación oncogénica, el crecimiento tumoral, la angiogénesis, la metástasis y los procesos proinflamatorios.
+  
+  - TGFB1. En pacientes con cancer, las células tumorales se ha demostrado que inducen la formación de más TGFB1 con lo que consiguen suprimir aun mas la defensa inmunitaria del organismo
+  
+  - NFKB1: El factor nuclear de transcripción NF-κB (1) es importante en muchas vías de señalización celular, participa en diversos procesos biológicos y sus alteraciones están asociadas a trastornos inmunitarios y cáncer, entre otras patologías. NF-κB se expresa en todos los tipos de células y tejidos, de tal forma que muchas mutaciones oncogénicas contribuyen a la activación de NF-κB en las células tumorales, y son nuevas rutas de investigación terapéuticas para el cáncer.
+  
+  - MAPK1: MAPK1 promueve la metástasis y la invasión del cáncer gástrico como factor de transcripción bidireccional
+  
+  - FASN: Codifica para una enzima que ayuda a las células cancerosas a crecer y resistir los ataques inmunitarios
+  
+  - NLRP3: La desregulación de la activación del inflamasoma NLRP3 está implicada en la patogénesis tumoral, aunque su papel en el desarrollo y la progresión del cáncer sigue siendo controvertido debido a los hallazgos inconsistentes descritos
+  
+  
+ Sabiendo esto no es de extrañar que la actividad asociada a estos genes sea tan notoria en nuestra base de datos de pacientes con cancer
+  
+¿ Y para las 5 primeras dimensiones ?
+
+```{r}
+contribucion_variables_dim1_5 <- fviz_contrib(pca_genes, choice = "var", axes = 1:5, top = 10)  
+contribucion_variables_dim1_5
+```
+Podemos apreciar que hay genes que si solo miramos la dimension1 no aparecen como es el caso del STA T3, NOX5, ADIPOQ y CCR5
+
+  - STAT3: La STAT3 es una oncoproteína que se encuentra activa de manera constitutiva en cerca del 70 % de los tumores sólidos y hematológicos, incluidos el mieloma múltiple, varios tipos de linfoma y leucemia, el cáncer de seno, cabeza y cuello, el cáncer de próstata, el carcinoma de ovario, el melanoma, el carcinoma renal, el colorrectal y los tumores del epitelio del timo 
+  
+  - NOX5: Gen ampliamente implicado en el desarrollo de tejidos cancerígenos y en la proliferación de carcinomas en distintas áreas del cuerpo
+  
+  - ADIPOQ: Tiene una relación directa con el cáncer, y por lo que he encontrado, está especialmente relacionado con el cáncer de mama
+  
+  - CCR5 : Este gen forma el eje CCL5/CCR5. Este eje se ha demosrtado que esta involucrado en la progresión del cáncer, incluido el crecimiento tumoral autocrino y paracrino, la remodelación y migración de la matriz extracelular, la expansión de células madre cancerosas, la reparación del daño del ADN, la reprogramación metabólica y la angiogénesis
+  
+```{r}
+# Contribucion de las 10 primeras variables a los 5 primeros componentes principales
+
+  corrplot(var$contrib[1:10, 1:5], is.corr = FALSE, 
+         method = "circle",
+         col = COL2('RdBu', 10))
+```
+
+(recomendado show in new windows)
+```{r}
+fviz_pca_var(pca_genes, col.var = "contrib",
+  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+  repel = T,
+  arrowsize = 0.01)
+```
+
+
+
+# - Calidad
+
+```{r}
+# "Calidad" de las 10 primeras variables a los 5 primeros componentes principales
+
+  corrplot(var$cos2[1:10, 1:5], is.corr = FALSE, 
+         method = "circle",
+         col = COL2('RdBu', 10))
+```
+```{r}
+fviz_pca_var(pca_genes, col.var = "cos2", 
+              geom.var = "arrow", 
+              labelsize = 2, 
+              repel = F)
+ 
+```
+
+
+### - Varianza explicada y acumulada
+
+```{r}
 # Proporción de varianza explicada y acumulada
 
 PVE <- 100*pca_genes$sdev^2/sum(pca_genes$sdev^2)
@@ -179,45 +292,147 @@ plot(cumsum(PVE), type = "o",
      ylab = "PVE acumulada", 
      xlab = "Componente principal", 
      col = "brown3")
+abline(v = 5, col = "black", lty = 2, lwd = 2)
+abline(h = 70, col = "black", lty = 2, lwd = 2)
 ```
+ De una forma mas visual se ve como solo el primer componente explica la amyor parte de la variacion y a medida que aumenta el numero de estos menor es su contribucion al modelo
+ Se ve mejor como seleccionando solo los 5 primeros componentes ya se explica una cantidad proxima al 70% de la varianza total
+
+
 
 ### ----  2.2. Aplicación del PCA y elecciones de componentes principales ----
 
-```{r}
-# Representación de las observaciones
+###- Graficar individuos
 
+De la misma forma que antes con las variables ahora podemos extraer informacion de los individuos
+```{r}
+ind <- get_pca_ind(pca_genes)
+ind
+```
+De este modo las contribuciones de los individuos se podran reflejar de la siguiente forma
+
+```{r}
+head(ind$contrib)
+```
+ Asi como la calidad que podria verse asi
+ 
+```{r}
+  head(ind$cos2)
+```
+
+Sin embargo estos datos asi no nos dicen mucho, vamos a probar otras formas mas visuales de representarlos
+
+# -Representación de las observaciones 
+
+```{r}
+# Coordenadas de los individuos en las dos primeras componentes
 library(factoextra)
 
 fviz_pca_ind(pca_genes, geom.ind = "point", 
              col.ind = "#FC4E07", 
              axes = c(1, 2), 
              pointsize = 1.5) 
+```
 
-# Representación de las variables
+En el grafico mostrado se ve la distribucion de los individuos en funcion de sus proyeciones (coordenadas) en las dos primeras dimensiones
 
-fviz_pca_var(pca_genes, col.var = "cos2", 
-             geom.var = "arrow", 
-             labelsize = 2, 
-             repel = FALSE)
+Los ejes x e y (PC1 y PC2) son los ejes de la proyección de los datos. El primer componente principal (PC1) representa la dirección de máxima varianza en los datos, y el segundo componente (PC2) captura la mayor varianza restante, pero ortogonal a PC1
 
-var <- get_pca_var(pca_genes)
-var
 
-# -- ESTAS DOS SON VARIACIONES DE LAS OTRAS, EN LAS DIAPOS EXPLICA MÁS O MENOS LOS SIGNIFICADOS --
-fviz_pca_ind(pca_genes, pointsize = "cos2",
-            pointshape = 21,
-            fill = "yellow",
-            repel = TRUE)
 
-fviz_pca_biplot(pca_genes, repel = TRUE,
-                col.var = "#2E9FDF", # Variables color
-                col.ind = "#696969" # Individuals color
-  )
-# Biplot
+Vamos a graficar ahora en funcion de su calidad (cos2)
 
-biplot(pca_genes, scale = 0, cex = 0.5, col = c("dodgerblue3", "deeppink3"))
+```{r}
+# Calidad de los individuos
+
+fviz_pca_ind(pca_genes, col.ind = "cos2", pointsize = "cos2",
+gradient.cols = c("blue", "red"),
+repel = TRUE )
+```
+Los individuos mas similares se agrupan 
+
+Aquellos con una menor "calidad"  (menor valor de cos2) se muestran en azul mientras que los que mas calidad tienen se colorean en rojo
+
+Se pueden ver individuos aislados quiza correspondientes a valores atipicos (ind.40, indv.32)
+
+Por ultimo en funcion de su contribucion
+
+```{r}
+# Contribucion de los individuos
+
+fviz_pca_ind(pca_genes, col.ind = "contrib", pointsize = "cos2",
+gradient.cols = c("blue", "red"),
+repel = TRUE )
+```
+Para el caso de los indivuduos su contribucion y calidad a las dos primeras dimensiones es bastante diferente
+
+Se podria ver tambien que individuos aportan mas a la dimendion1_ mediante un grafico de barras aunque para este caso concreto no es muy relevante
+```{r}
+fviz_cos2(pca_genes, choice = "ind")
 
 ```
+
+# - Biplot
+
+Pese a que la funcion biplot solo puede ser útil cuando hay un número bajo de variables e individuos en el conjunto de datos ya que sino la trama final sera ilegible, vamos a representarlo igualmente
+
+```{r}
+fviz_pca_biplot(pca_genes, repel = TRUE,
+                col.var = "blue",  # Color de las variables
+                col.ind = "yellow"  # Color de los individuos
+) + theme_minimal()  
+
+
+```
+
+Le podemos añadir elipses que agrupen en funcion de una caracteristica como puede ser el tratamiento o tipo de cancer pero nuevamente al ser una base de datos "grande" es bastante poco intuitivo
+
+```{r}
+fviz_pca_biplot(pca_genes,
+
+col.ind = df$trat, palette = "jco",
+addEllipses = TRUE, label = "var",
+col.var = "red", repel = TRUE,
+legend.title = "Tratamiento",
+title = "Biplot PCA - Tratamientos")
+```
+
+```{r}
+fviz_pca_biplot(pca_genes,
+
+col.ind = df$tumor, palette = "jco",
+addEllipses = TRUE, label = "var",
+col.var = "red", repel = F,
+legend.title = "Cancer",
+title = "Biplot PCA - Cancer")
+```
+En este caso podemos ver algunos genes que parecen destacar o tener mas presencia sobre algun tpo de tumor especifico
+
+
+```{r}
+fviz_pca_biplot(pca_genes,
+                
+                # Individuos
+                geom.ind = "point",
+                fill.ind = df$tumor, col.ind = "black",
+                pointshape = 21, pointsize = 2,
+                palette = "jco",
+                addEllipses = TRUE,
+
+                # Variables
+                alpha.var = "contrib", col.var = "contrib",
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                legend.title = list(fill = "Cancer", color = "Contrib", alpha = "Contrib"), 
+                title = "PCA Biplot Completo") + 
+  theme_minimal() +  # Aplica un tema minimalista
+  theme(panel.grid = element_blank())  # Elimina el grid de fondo
+
+```
+
+
+
+
+
 Para representar la tabla que nos piden:
 ```{r}
 # 1. Sacamos cuartiles de cada componente a representar (2 componentes)
