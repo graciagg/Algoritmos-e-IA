@@ -2,14 +2,25 @@
 title: "Actividad 3 Estadística y R"
 author: "Equipo 1 UNIR"
 date: "2025-01-21"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+
 ---
+
+El objetivo de esta actividad es aplicar los conceptos aprendidos durante la materia (visualización gráfica, análisis descriptivos, contrastes de hipótesis, PCA,...). Utilizaremos un *dataset* que contienen información de la expresión de 46 genes en 65 pacientes, cada uno con distintos tipos de tratamiento y características tumorales.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+## 0. Carga de liberías y preparación de los datos
+
+Carga de las librerías necesarias para el desarrollo de la actividad.
+
+```{r include=FALSE}
 library(moments)
 library(dplyr)
 library(tidyr)
@@ -23,51 +34,52 @@ library(patchwork)
 library(stats)
 library(factoextra)
 library(pheatmap)
+library(corrplot)
+library(pROC)
+
 ```
 
-Seleccionamos el directorio y cargamos la base de datos “Dataset expresión genes” con la que trabajaremos durante la actividad. Con la función any(is.na(df)) comprobamos que no haya missings en los datos proporcionados.
+Seleccionamos el directorio y cargamos la base de datos “Dataset expresión genes” con la que trabajaremos durante la actividad. Con la función **any(is.na(df))** comprobamos que no haya missings en los datos proporcionados.
 
 ```{r}
 path_gracia <- "C:/Users/graci/Documents/BIOINFORMATICA_UNIR/Estadística y R para Ciencias de la Salud/Actividades/mubio02_act3"
+path_Gorka <-  "~/Desktop/UNIR/Estadística y R para Ciencias de la Salud/Actividades /Actividad 3"
 path <- "~/Desktop/UNIR/Estadística y R para Ciencias de la Salud/Actividades /Actividad 3"
-setwd(path_gracia)
+
+setwd(path_Gorka)
+
 df <- read.csv("Dataset expresion genes.csv", sep=',')
 View(df)
 any(is.na(df))
 
 ```
 
+Creamos un data frame que contenga los datos de los genes para trabajar con ellos más adelante.
 
 ```{r}
-# Creamos un df solamente con los genes para poder trabajar con ellos posteriormente
+
 genes <- grep("AQ_", colnames(df), value = TRUE)
 genes_df <- df[, genes]
 any(is.na(genes_df))
 ```
 
+## 1. Comprobar la normalidad de los genes y realizar una interpretación de los resultados obtenidos
 
-### ---- 1.	Comprobar la normalidad de los genes y realizar una interpretación de los resultados obtenidos ----
+### 1.1. Comprobamos la normalidad de los genes.
 
-                                             Comprobacion de la normalidad
-                        
 ```{r}
+
 nombre_genes<-colnames(genes_df) 
 resultados<-data.frame(gen=nombre_genes,p_valor=numeric((length(genes_df))))
 
 ```
 
-Gen sera igual a los elementos contenidos en el vector nombre_genes
- valor_p de momento la creo vacia pero establezco su longitud para que sea la misma que elementos tiene el vector nomre_genes
+Gen sera igual a los elementos contenidos en el vector nombre_genes valor_p de momento la creo vacia pero establezco su longitud para que sea la misma que elementos tiene el vector nomre_genes
 
- Uso de notacion cientifica con 3 cifras significativas debido a los valores tan bajos obtenidos
- En caso de hacer  "scientific = F", aun cogiendo 5 cifras seguiria siendo 0 que visualmente queda peor
+Uso de notacion cientifica con 3 cifras significativas debido a los valores tan bajos obtenidos En caso de hacer "scientific = F", aun cogiendo 5 cifras seguiria siendo 0 que visualmente queda peor
 
+Principios del Shapiro Test H0 si p_value \> = 0.05 -\> Asumo normalidad H1 si p_value \< 0.05 -\> Asumo que no hay normalidad en mis datos
 
- Principios del Shapiro Test
-   H0 si p_value > = 0.05 -> Asumo normalidad 
-   H1 si p_value < 0.05   -> Asumo que no hay normalidad en mis datos
-   
-   
 ```{r}
 for (i in 1:length(nombre_genes)) { 
   normalidad <- shapiro.test(df[[nombre_genes[i]]])
@@ -95,9 +107,9 @@ for (i in 1:nrow(resultados)){
 
 ```
 
+### 1.2 Creacion de la Tabla 1
 
-### ---- 1.2	Creacion de la tabla 1. ----
- (Al ejecutar el siguiente chunk aparecen 2 objetos *shiny.tag*, el importante es el segundo que es el que mas completo esta)
+(Al ejecutar el siguiente chunk aparecen 2 objetos *shiny.tag*, el importante es el segundo que es el que mas completo esta)
 
 ```{r}
 resultados %>%
@@ -130,11 +142,12 @@ tabla1 <- resultados %>%
 print(tabla1)
 ```
 
+## 2. PCA 
 
-### ----  2. 	PCA ----
+### 2.1. Aplicación del PCA y elecciones de componentes principales
 
-### ----  2.1. Aplicación del PCA y elecciones de componentes principales ----
-### - Implementacion del modelo
+#### 2.1.1 Implementacion del modelo
+
 ```{r}
 # 1. Creacion del modelo
 pca_genes <- prcomp(genes_df, scale = TRUE)
@@ -156,16 +169,16 @@ summary(pca_genes)                      # A partir de esto puedo ver cuanto cont
 
 ```
 
-### - Eleccion del numero de componentes principales mediante los eign values
+#### 2.1.2 Eleccion del numero de componentes principales mediante los eignvalues
+
 ```{r}
 
 # Extraer los eignvalores con su varianza acumulativa (%)
 eign_values_df <-as.data.frame(get_eig(pca_genes))
 head(eign_values_df)
 ```
-Tras analizar el df de los eign values vemos que el primer componente por si ya explica el 52% de la varianza
-Vemos tambien que cogiendo los 5 primeros componentes ya se explica el 70% de la var total por lo tanto este puede ser un numero adecuado de componentes con los que trabajar
 
+Tras analizar el df de los eign values vemos que el primer componente por si ya explica el 52% de la varianza Vemos tambien que cogiendo los 5 primeros componentes ya se explica el 70% de la var total por lo tanto este puede ser un numero adecuado de componentes con los que trabajar
 
 ```{r}
 # Scree plot: Una forma es generando un scree plot que represente los eigenvalores ordenador de mayor a menor.
@@ -175,8 +188,8 @@ fviz_screeplot(pca_genes, addlabels = TRUE, ylim = c(0, 20))
 
 ```
 
+#### Contribucion y calidad de las variables al modelo
 
-### - Contribucion y calidad de las variables al modelo
 ```{r}
 # Graficas de variables
 var <- get_pca_var(pca_genes)        # A partir de esto podemos extraer informacion
@@ -184,11 +197,11 @@ var
 head(var$cor)                        # Contribuciones de las variables a los componentes principales
 head(var$cos2)                       # Calidad en el mapa de factores
 ```
- **cos2** --> representa la calidad, mayor cos2 = mayor calidad de la variable = más importante
-   **contrib** --> Contiene las contribuciones (en %) de las variables a los componentes principales 
 
+**cos2** --\> representa la calidad, mayor cos2 = mayor calidad de la variable = más importante **contrib** --\> Contiene las contribuciones (en %) de las variables a los componentes principales
 
-# - Contribucion
+#### 2.1.3 Contribucion
+
 ```{r}
 # Contribución de variables: Top 10 variables
 # La línea roja discontinua indica valor medio de contribución.
@@ -196,48 +209,48 @@ head(var$cos2)                       # Calidad en el mapa de factores
 contribucion_variables_dim1 <- fviz_contrib(pca_genes, choice = "var", axes = 1, top = 10)  
 contribucion_variables_dim1
 ```
-De la grafica extraemos que las variables que mas contribuyen a la Dimension 1 son:
-(busca info de cada una)
 
-  - JAK1: Este gen desempeña un papel crucial en la expresión de genes que median la inflamación, la remodelación epitelial y la progresión del cáncer metastásico. Este gen es un componente clave de la respuesta inmune e inflamatoria de la interleucina-6 (IL-6)/JAK1/STAT3 
-  
-  - CCL5: Se ha demostrado que este gen participa en el desarrollo y propagación de las células cancerígenas, para ello, las células cancerígenas revierten la acción de este gen para usarlo en contra del paciente formando un microambiente supresor
-  
-  - SREBF1:Necesaria para la respuesta inmune innata en los macrófagos al regular el metabolismo lipídico
-  
-  - NFE2L2:Codifican proteínas involucradas en la respuesta a lesiones e inflamaciones, que incluye la producción de radicales libres.La activación de NFE2L2 se ha relacionado con la quimiorresistencia en modelos de líneas celulares. Recientemente, se ha descubierto que las mutaciones somáticas que activan NFE2L2, están asociadas con malos resultados en pacientes con cáncer de pulmón de células no pequeñas 
-  
-  - PTAFR :Este gen codifica un receptor acoplado a proteína G de siete transmembrana para el factor activador de plaquetas (PAF), el PAF es un fosfolípido que desempeña un papel importante en la transformación oncogénica, el crecimiento tumoral, la angiogénesis, la metástasis y los procesos proinflamatorios.
-  
-  - TGFB1. En pacientes con cancer, las células tumorales se ha demostrado que inducen la formación de más TGFB1 con lo que consiguen suprimir aun mas la defensa inmunitaria del organismo
-  
-  - NFKB1: El factor nuclear de transcripción NF-κB (1) es importante en muchas vías de señalización celular, participa en diversos procesos biológicos y sus alteraciones están asociadas a trastornos inmunitarios y cáncer, entre otras patologías. NF-κB se expresa en todos los tipos de células y tejidos, de tal forma que muchas mutaciones oncogénicas contribuyen a la activación de NF-κB en las células tumorales, y son nuevas rutas de investigación terapéuticas para el cáncer.
-  
-  - MAPK1: MAPK1 promueve la metástasis y la invasión del cáncer gástrico como factor de transcripción bidireccional
-  
-  - FASN: Codifica para una enzima que ayuda a las células cancerosas a crecer y resistir los ataques inmunitarios
-  
-  - NLRP3: La desregulación de la activación del inflamasoma NLRP3 está implicada en la patogénesis tumoral, aunque su papel en el desarrollo y la progresión del cáncer sigue siendo controvertido debido a los hallazgos inconsistentes descritos
-  
-  
- Sabiendo esto no es de extrañar que la actividad asociada a estos genes sea tan notoria en nuestra base de datos de pacientes con cancer
-  
+De la grafica extraemos que las variables que mas contribuyen a la Dimension 1 son: (busca info de cada una)
+
+-   JAK1: Este gen desempeña un papel crucial en la expresión de genes que median la inflamación, la remodelación epitelial y la progresión del cáncer metastásico. Este gen es un componente clave de la respuesta inmune e inflamatoria de la interleucina-6 (IL-6)/JAK1/STAT3
+
+-   CCL5: Se ha demostrado que este gen participa en el desarrollo y propagación de las células cancerígenas, para ello, las células cancerígenas revierten la acción de este gen para usarlo en contra del paciente formando un microambiente supresor
+
+-   SREBF1:Necesaria para la respuesta inmune innata en los macrófagos al regular el metabolismo lipídico
+
+-   NFE2L2:Codifican proteínas involucradas en la respuesta a lesiones e inflamaciones, que incluye la producción de radicales libres.La activación de NFE2L2 se ha relacionado con la quimiorresistencia en modelos de líneas celulares. Recientemente, se ha descubierto que las mutaciones somáticas que activan NFE2L2, están asociadas con malos resultados en pacientes con cáncer de pulmón de células no pequeñas
+
+-   PTAFR :Este gen codifica un receptor acoplado a proteína G de siete transmembrana para el factor activador de plaquetas (PAF), el PAF es un fosfolípido que desempeña un papel importante en la transformación oncogénica, el crecimiento tumoral, la angiogénesis, la metástasis y los procesos proinflamatorios.
+
+-   TGFB1. En pacientes con cancer, las células tumorales se ha demostrado que inducen la formación de más TGFB1 con lo que consiguen suprimir aun mas la defensa inmunitaria del organismo
+
+-   NFKB1: El factor nuclear de transcripción NF-κB (1) es importante en muchas vías de señalización celular, participa en diversos procesos biológicos y sus alteraciones están asociadas a trastornos inmunitarios y cáncer, entre otras patologías. NF-κB se expresa en todos los tipos de células y tejidos, de tal forma que muchas mutaciones oncogénicas contribuyen a la activación de NF-κB en las células tumorales, y son nuevas rutas de investigación terapéuticas para el cáncer.
+
+-   MAPK1: MAPK1 promueve la metástasis y la invasión del cáncer gástrico como factor de transcripción bidireccional
+
+-   FASN: Codifica para una enzima que ayuda a las células cancerosas a crecer y resistir los ataques inmunitarios
+
+-   NLRP3: La desregulación de la activación del inflamasoma NLRP3 está implicada en la patogénesis tumoral, aunque su papel en el desarrollo y la progresión del cáncer sigue siendo controvertido debido a los hallazgos inconsistentes descritos
+
+Sabiendo esto no es de extrañar que la actividad asociada a estos genes sea tan notoria en nuestra base de datos de pacientes con cancer
+
 ¿ Y para las 5 primeras dimensiones ?
 
 ```{r}
 contribucion_variables_dim1_5 <- fviz_contrib(pca_genes, choice = "var", axes = 1:5, top = 10)  
 contribucion_variables_dim1_5
 ```
+
 Podemos apreciar que hay genes que si solo miramos la dimension1 no aparecen como es el caso del STA T3, NOX5, ADIPOQ y CCR5
 
-  - STAT3: La STAT3 es una oncoproteína que se encuentra activa de manera constitutiva en cerca del 70 % de los tumores sólidos y hematológicos, incluidos el mieloma múltiple, varios tipos de linfoma y leucemia, el cáncer de seno, cabeza y cuello, el cáncer de próstata, el carcinoma de ovario, el melanoma, el carcinoma renal, el colorrectal y los tumores del epitelio del timo 
-  
-  - NOX5: Gen ampliamente implicado en el desarrollo de tejidos cancerígenos y en la proliferación de carcinomas en distintas áreas del cuerpo
-  
-  - ADIPOQ: Tiene una relación directa con el cáncer, y por lo que he encontrado, está especialmente relacionado con el cáncer de mama
-  
-  - CCR5 : Este gen forma el eje CCL5/CCR5. Este eje se ha demosrtado que esta involucrado en la progresión del cáncer, incluido el crecimiento tumoral autocrino y paracrino, la remodelación y migración de la matriz extracelular, la expansión de células madre cancerosas, la reparación del daño del ADN, la reprogramación metabólica y la angiogénesis
-  
+-   STAT3: La STAT3 es una oncoproteína que se encuentra activa de manera constitutiva en cerca del 70 % de los tumores sólidos y hematológicos, incluidos el mieloma múltiple, varios tipos de linfoma y leucemia, el cáncer de seno, cabeza y cuello, el cáncer de próstata, el carcinoma de ovario, el melanoma, el carcinoma renal, el colorrectal y los tumores del epitelio del timo
+
+-   NOX5: Gen ampliamente implicado en el desarrollo de tejidos cancerígenos y en la proliferación de carcinomas en distintas áreas del cuerpo
+
+-   ADIPOQ: Tiene una relación directa con el cáncer, y por lo que he encontrado, está especialmente relacionado con el cáncer de mama
+
+-   CCR5 : Este gen forma el eje CCL5/CCR5. Este eje se ha demosrtado que esta involucrado en la progresión del cáncer, incluido el crecimiento tumoral autocrino y paracrino, la remodelación y migración de la matriz extracelular, la expansión de células madre cancerosas, la reparación del daño del ADN, la reprogramación metabólica y la angiogénesis
+
 ```{r}
 # Contribucion de las 10 primeras variables a los 5 primeros componentes principales
 
@@ -247,6 +260,7 @@ Podemos apreciar que hay genes que si solo miramos la dimension1 no aparecen com
 ```
 
 (recomendado show in new windows)
+
 ```{r}
 fviz_pca_var(pca_genes, col.var = "contrib",
   gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
@@ -254,9 +268,7 @@ fviz_pca_var(pca_genes, col.var = "contrib",
   arrowsize = 0.01)
 ```
 
-
-
-# - Calidad
+#### 2.1.4 Calidad
 
 ```{r}
 # "Calidad" de las 10 primeras variables a los 5 primeros componentes principales
@@ -264,7 +276,9 @@ fviz_pca_var(pca_genes, col.var = "contrib",
   corrplot(var$cos2[1:10, 1:5], is.corr = FALSE, 
          method = "circle",
          col = COL2('RdBu', 10))
+
 ```
+
 ```{r}
 fviz_pca_var(pca_genes, col.var = "cos2", 
               geom.var = "arrow", 
@@ -273,8 +287,7 @@ fviz_pca_var(pca_genes, col.var = "cos2",
  
 ```
 
-
-### - Varianza explicada y acumulada
+#### 2.1.5 Varianza explicada y acumulada
 
 ```{r}
 # Proporción de varianza explicada y acumulada
@@ -295,34 +308,35 @@ plot(cumsum(PVE), type = "o",
 abline(v = 5, col = "black", lty = 2, lwd = 2)
 abline(h = 70, col = "black", lty = 2, lwd = 2)
 ```
- De una forma mas visual se ve como solo el primer componente explica la amyor parte de la variacion y a medida que aumenta el numero de estos menor es su contribucion al modelo
- Se ve mejor como seleccionando solo los 5 primeros componentes ya se explica una cantidad proxima al 70% de la varianza total
 
+De una forma mas visual se ve como solo el primer componente explica la amyor parte de la variacion y a medida que aumenta el numero de estos menor es su contribucion al modelo Se ve mejor como seleccionando solo los 5 primeros componentes ya se explica una cantidad proxima al 70% de la varianza total
 
+### 2.2. Aplicación del PCA y elecciones de componentes principales
 
-### ----  2.2. Aplicación del PCA y elecciones de componentes principales ----
-
-###- Graficar individuos
+#### 2.2.1 Graficar individuos
 
 De la misma forma que antes con las variables ahora podemos extraer informacion de los individuos
+
 ```{r}
 ind <- get_pca_ind(pca_genes)
 ind
 ```
+
 De este modo las contribuciones de los individuos se podran reflejar de la siguiente forma
 
 ```{r}
 head(ind$contrib)
 ```
- Asi como la calidad que podria verse asi
- 
+
+Asi como la calidad que podria verse asi
+
 ```{r}
   head(ind$cos2)
 ```
 
 Sin embargo estos datos asi no nos dicen mucho, vamos a probar otras formas mas visuales de representarlos
 
-# -Representación de las observaciones 
+#### 2.2.2. Representación de las observaciones
 
 ```{r}
 # Coordenadas de los individuos en las dos primeras componentes
@@ -338,8 +352,6 @@ En el grafico mostrado se ve la distribucion de los individuos en funcion de sus
 
 Los ejes x e y (PC1 y PC2) son los ejes de la proyección de los datos. El primer componente principal (PC1) representa la dirección de máxima varianza en los datos, y el segundo componente (PC2) captura la mayor varianza restante, pero ortogonal a PC1
 
-
-
 Vamos a graficar ahora en funcion de su calidad (cos2)
 
 ```{r}
@@ -349,9 +361,10 @@ fviz_pca_ind(pca_genes, col.ind = "cos2", pointsize = "cos2",
 gradient.cols = c("blue", "red"),
 repel = TRUE )
 ```
-Los individuos mas similares se agrupan 
 
-Aquellos con una menor "calidad"  (menor valor de cos2) se muestran en azul mientras que los que mas calidad tienen se colorean en rojo
+Los individuos mas similares se agrupan
+
+Aquellos con una menor "calidad" (menor valor de cos2) se muestran en azul mientras que los que mas calidad tienen se colorean en rojo
 
 Se pueden ver individuos aislados quiza correspondientes a valores atipicos (ind.40, indv.32)
 
@@ -364,15 +377,17 @@ fviz_pca_ind(pca_genes, col.ind = "contrib", pointsize = "cos2",
 gradient.cols = c("blue", "red"),
 repel = TRUE )
 ```
+
 Para el caso de los indivuduos su contribucion y calidad a las dos primeras dimensiones es bastante diferente
 
-Se podria ver tambien que individuos aportan mas a la dimendion1_ mediante un grafico de barras aunque para este caso concreto no es muy relevante
+Se podria ver tambien que individuos aportan mas a la dimendion1\_ mediante un grafico de barras aunque para este caso concreto no es muy relevante
+
 ```{r}
 fviz_cos2(pca_genes, choice = "ind")
 
 ```
 
-# - Biplot
+#### 2.2.3 Biplot
 
 Pese a que la funcion biplot solo puede ser útil cuando hay un número bajo de variables e individuos en el conjunto de datos ya que sino la trama final sera ilegible, vamos a representarlo igualmente
 
@@ -406,8 +421,8 @@ col.var = "red", repel = F,
 legend.title = "Cancer",
 title = "Biplot PCA - Cancer")
 ```
-En este caso podemos ver algunos genes que parecen destacar o tener mas presencia sobre algun tpo de tumor especifico
 
+En este caso podemos ver algunos genes que parecen destacar o tener mas presencia sobre algun tpo de tumor especifico
 
 ```{r}
 fviz_pca_biplot(pca_genes,
@@ -429,11 +444,10 @@ fviz_pca_biplot(pca_genes,
 
 ```
 
-
-
-
+## 3. Tabla descriptiva de las variables más importantes
 
 Para representar la tabla que nos piden:
+
 ```{r}
 # 1. Sacamos cuartiles de cada componente a representar (2 componentes)
 terciles_PC1 <- quantile(pca_genes$x[, 1], probs = c(1/3, 2/3))
@@ -478,7 +492,6 @@ colnames(resultados) <- c("Componente", "Tercil", "Media/Mediana", "Desviación 
 print(resultados)
 ```
 
-
 ```{r}
 df_long <- df %>%
   pivot_longer(cols = starts_with("AQ_"),  # Cambia esto según el nombre de las columnas de tus genes
@@ -496,14 +509,26 @@ tabla_resumen <- df_long %>%
 tabla_resumen
 ```
 
-### ----  5. Implementar un modelo de regresión logística ----
+## 4. Implementar un modelo de regresión logística
 
-Tenemos que transformar la variable 'Extension' en binomial (si y no). Es decir, en caso de que haya metástatisis será 'si' y de ser regional o localizado será 'no'. 
+La regresión logística es un modelo estadístico ampliamente utilizado en la biomedicina para anilizar factores de riesgo y predecir eventos clínicos. Esta busca modelar la relación entre una variable de resultado binaria y un conjunto de variables predictoras.
+
+En primero lugar, transformaremos la variable 'Extension' en una respuesta binomial (si y no). Es decir, en caso de que haya metástatisis será 'si' y de ser regional o localizado corresponderá a 'no'.
 
 ```{r}
 
 df <- df %>%
   mutate(extension = ifelse(extension == "metastasico", "Si", "No"))
+
+```
+
+### 4.1. Metástasis vs PCA - edad - sexo
+
+Tomamos para este primer ejemplo los dos primeros PCA, ya que, como hemos visto anteriormente, son los que representan la mayor varianza de los datos. También aplicaremos las variables edad y sexo y veremos que impacto tienen estas en si se produce o no metástasis en el paciente.
+
+```{r}
+
+#Creamos los terciles (t1, t2, t3) de los dos primeros componentes
 
 pca_df <- as.data.frame(pca_genes$x)
 
@@ -511,15 +536,16 @@ for (i in 1:2) {  # Tomamos los 2 primeros componentes
   pca_df[[paste0("PC", i, "_tercil")]] <- cut(pca_df[[paste0("PC", i)]], 
                                                breaks = quantile(pca_df[[paste0("PC", i)]], probs = c(0, 1/3, 2/3, 1), na.rm = TRUE), 
                                                include.lowest = TRUE, 
-                                               labels = c("Bajo", "Medio", "Alto"))
+                                               labels = c("t1", "t2", "t3"))
 }
 
 df_variables_interes <- df %>% select(extension, edad, sexo)
+datos_modelo <- cbind(df_variables_interes, pca_df) #Creamos el data frame con los datos a evaluar
 
-datos_modelo <- cbind(df_variables_interes, pca_df)
-
-datos_modelo$extension <- as.factor(datos_modelo$extension)
+datos_modelo$extension <- as.factor(datos_modelo$extension) 
 datos_modelo$sexo <- as.factor(datos_modelo$sexo)
+
+# Aplicamos el modelo de regresion 
 
 modelo_regresion <- glm(extension ~ PC1_tercil + PC2_tercil + edad + sexo, data = datos_modelo, family = binomial)
 
@@ -532,34 +558,58 @@ levels(datos_modelo$sexo)
 
 ```
 
-"Con levels(datos_modelo$extension) podemos ver que el No aparece primero, por lo que es el que coge de referencia. Así que entiendo que, a mayor OR en las variables independientes, tendremos una mayor tendencia al Si, es decir, que haya metástasis."
-
-
 Tenemos diversos resultados respecto a la respuesta frente a las variables indiependientes de PCA (que corresponden a la expresión génica), edad y sexo. Los valores de OR varían, siendo algunos positivos, como en el caso de la edad y el sexo. La edad se acerca más o menos a un valor de 1, por lo que podemos pensar que la edad equivale a un riesgo nulo, no tiene efecto. En cuanto al sexo, el valor es de 2,09. Cogiendo de referencia al sexo femenino (se puede ver en levels), esto nos indica que hay un incremento del riesgo de que se produzca metástasis en caso de ser varon. De todos modos, los valores de p son superiores a 0.05, por lo que estos datos no resultarían signficativos.
+
+Evaluación del modelo: Se puede aplicar una curva ROC y calcular el AUC para evaluar así la capacidad predicitiva del modelo.
 
 ```{r}
 
-df_variables_interes_trat <- df %>% select(extension, trat)
+probabilidades <- predict(modelo_regresion, type = "response")
+roc_obj <- roc(datos_modelo$extension, probabilidades)
+plot(roc_obj, main = "Curva ROC")
+auc(roc_obj)  # Devuelve el valor AUC
 
-datos_modelo_trat <- cbind(df_variables_interes_trat, pca_df)
+```
 
-datos_modelo_trat$extension <- as.factor(datos_modelo_trat$extension)
-datos_modelo_trat$trat <- as.factor(datos_modelo_trat$trat)
+El área bajo la curva nos devuelve un valor de 0.6631, por lo que no llegaría a considerarse un bueno modelo.
 
-modelo_regresion_trat <- glm(extension ~ PC1_tercil + PC2_tercil + trat, data = datos_modelo_trat, family = binomial)
+### 4.1. Metástasis vs PCA - tratamiento - tumor
 
-summary(modelo_regresion_trat)
-summary(modelo_regresion_trat)$coefficients[, 4] #Esto corresponde a la columna de valores p
-exp(cbind(OR = coef(modelo_regresion_trat), confint(modelo_regresion_trat)))
+Otras dos variables que pueden ser interesantes analizar son tanto el tipo de tratamiento que se ha administrado al paciente como el tipo de tumor que presentan, y ver como estas pueden afectar a que se produzca metástasis. Evaluamos del mismo modo las variables PCA para comprobar que los resultados no difieren mucho del anterior modelo y así poder descartar variables confusoras.
 
-levels(datos_modelo_trat$trat)
+```{r}
+
+df_variables_trat_tumor <- df %>% select(extension, trat, tumor)
+
+datos_modelo_trat_tumor <- cbind(df_variables_trat_tumor, pca_df)
+
+datos_modelo_trat_tumor$extension <- as.factor(datos_modelo_trat_tumor$extension)
+datos_modelo_trat_tumor$trat <- as.factor(datos_modelo_trat_tumor$trat)
+datos_modelo_trat_tumor$tumor <- as.factor(datos_modelo_trat_tumor$tumor)
+
+modelo_regresion_trat_tumor <- glm(extension ~ PC1_tercil + PC2_tercil + trat + tumor, data = datos_modelo_trat_tumor, family = binomial)
+
+summary(modelo_regresion_trat_tumor)
+summary(modelo_regresion_trat_tumor)$coefficients[, 4] #Esto corresponde a la columna de valores p
+exp(cbind(OR = coef(modelo_regresion_trat_tumor), confint(modelo_regresion_trat_tumor)))
+
+levels(datos_modelo_trat_tumor$trat)
+levels(datos_modelo_trat_tumor$tumor)
 
 
 ```
 
-Revisando los datos tanto de los terciles como del tratamiento, ya sean por los valores de los IC y de los valores p, ninguna de las variables parece ser estadísticamente significativa.
+En este caso, la OR obtenida para el tratamiento es de 0.6. Esto nos indica que el tratamiento B tiene un factor protector de un 40% aproximadamente respescto al tratamiento A para que se produzca o no metástasis. Para los tipos de tumor, tanto el tumor CM como el CP, respecto al CCR, muestran una mayor probabilidad (2,24 y 2,49 veces más, respectivamente) de producir metástaisis en el paciente. Los valores p obtenidos son supeirores a 0.05, por lo que como en el caso anterior, los datos carecerían de valores significativos.
 
+Evaluamos el modelo mediante curva ROc y calculando el área bajo la curva.
 
+```{r}
 
+probabilidades <- predict(modelo_regresion_trat_tumor, type = "response")
+roc_obj <- roc(datos_modelo$extension, probabilidades)
+plot(roc_obj, main = "Curva ROC")
+auc(roc_obj)  # Devuelve el valor AUC
 
+```
 
+El área bajo la curva nos devuelve un valor de 0.6655, por lo que este modelo tampoco podría considerarse un bueno modelo.
