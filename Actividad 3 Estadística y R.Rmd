@@ -635,8 +635,6 @@ Esta tabla presenta los resultados de una regresión logística, donde represent
 
     -   **CM**: OR = 2.49 (0.64 - 11.29), p = 0.206
 
-    <!-- -->
-
     -   **CP**: OR = 2.10 (0.34 - 14.62), p = 0.428
 
     -   Ambos tumores tienen OR \> 1, lo que sugiere una posible asociación con mayor probabilidad de sufrir metástasis. Sin embargo, los intervalos de confianza son amplios y los valores p indican que no hay significancia estadística.
