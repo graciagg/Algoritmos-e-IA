@@ -7,7 +7,6 @@ output:
     toc: true
     toc_float: true
     toc_depth: 4
-
 ---
 
 El objetivo de esta actividad es aplicar los conceptos aprendidos durante la materia (visualización gráfica, análisis descriptivos, contrastes de hipótesis, PCA,...). Utilizaremos un *dataset* que contienen información de la expresión de 46 genes en 65 pacientes, cada uno con distintos tipos de tratamiento y características tumorales.
@@ -36,6 +35,7 @@ library(factoextra)
 library(pheatmap)
 library(corrplot)
 library(pROC)
+library(flextable)
 
 ```
 
@@ -142,7 +142,7 @@ tabla1 <- resultados %>%
 print(tabla1)
 ```
 
-## 2. PCA 
+## 2. PCA
 
 ### 2.1. Aplicación del PCA y elecciones de componentes principales
 
@@ -522,94 +522,141 @@ df <- df %>%
 
 ```
 
-### 4.1. Metástasis vs PCA - edad - sexo
+### 4.1. Metástasis vs PCA - sexo - trat - tumor
 
-Tomamos para este primer ejemplo los dos primeros PCA, ya que, como hemos visto anteriormente, son los que representan la mayor varianza de los datos. También aplicaremos las variables edad y sexo y veremos que impacto tienen estas en si se produce o no metástasis en el paciente.
+Tomamos para este primer ejemplo los dos primeros PCA, ya que, como hemos visto anteriormente, son los que representan la mayor varianza de los datos. También aplicaremos las variables sexo, tratamiento y tumor, ya que son variables que pueden influir en la metástatis tumoral.
 
 ```{r}
 
-#Creamos los terciles (t1, t2, t3) de los dos primeros componentes
+# Agreamos los PC1 y PC2 al dataframe inicial.
+# Creamos los terciles (T1, T2, T3) de los dos primeros componentes
 
-pca_df <- as.data.frame(pca_genes$x)
+df$PC1 <- pca_genes$x[, 1]
+df$PC2 <- pca_genes$x[, 2]
 
-for (i in 1:2) {  # Tomamos los 2 primeros componentes
-  pca_df[[paste0("PC", i, "_tercil")]] <- cut(pca_df[[paste0("PC", i)]], 
-                                               breaks = quantile(pca_df[[paste0("PC", i)]], probs = c(0, 1/3, 2/3, 1), na.rm = TRUE), 
-                                               include.lowest = TRUE, 
-                                               labels = c("t1", "t2", "t3"))
-}
+df <- df %>%
+    mutate(tercil_PC1 = cut(PC1, breaks = quantile(PC1, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE), 
+                      include.lowest = TRUE, labels = c("T1", "T2", "T3")),
+    tercil_PC2 = cut(PC2, breaks = quantile(PC2, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE), 
+                      include.lowest = TRUE, labels = c("T1", "T2", "T3")),
+  )
 
-df_variables_interes <- df %>% select(extension, edad, sexo)
-datos_modelo <- cbind(df_variables_interes, pca_df) #Creamos el data frame con los datos a evaluar
+#Convertimos a factor las variables categóricas que vayamos a utilizar en el modelo de regresión
 
-datos_modelo$extension <- as.factor(datos_modelo$extension) 
-datos_modelo$sexo <- as.factor(datos_modelo$sexo)
+df$extension <- as.factor(df$extension) 
+df$sexo <- as.factor(df$sexo)
+df$trat <- as.factor(df$trat)
+df$tumor <- as.factor(df$tumor)
 
 # Aplicamos el modelo de regresion 
 
-modelo_regresion <- glm(extension ~ PC1_tercil + PC2_tercil + edad + sexo, data = datos_modelo, family = binomial)
+modelo_regresion <- glm(extension ~ tercil_PC1 + tercil_PC2 + sexo + trat+ tumor, data = df, family = binomial)
 
-summary(modelo_regresion)
-summary(modelo_regresion)$coefficients[, 4] #Esto corresponde a la columna de valores p
-exp(cbind(OR = coef(modelo_regresion), confint(modelo_regresion)))
+summary(modelo_regresion) # Resumen del modelo
+coef_exponenciados <-  exp(coef(modelo_regresion))
+conf_intervalos <- exp(confint(modelo_regresion))
+valores_p <- summary(modelo_regresion)$coefficients[, 4] #Esto corresponde a la columna de valores p
 
-levels(datos_modelo$extension)
-levels(datos_modelo$sexo)
+# Con levels, podemos ver que resultado de cada variable coge como referencia (0) el modelo. 
+
+levels(df$extension)
+levels(df$sexo)
+levels(df$trat)
+levels(df$tumor)
 
 ```
 
-Tenemos diversos resultados respecto a la respuesta frente a las variables indiependientes de PCA (que corresponden a la expresión génica), edad y sexo. Los valores de OR varían, siendo algunos positivos, como en el caso de la edad y el sexo. La edad se acerca más o menos a un valor de 1, por lo que podemos pensar que la edad equivale a un riesgo nulo, no tiene efecto. En cuanto al sexo, el valor es de 2,09. Cogiendo de referencia al sexo femenino (se puede ver en levels), esto nos indica que hay un incremento del riesgo de que se produzca metástasis en caso de ser varon. De todos modos, los valores de p son superiores a 0.05, por lo que estos datos no resultarían signficativos.
+El modelo de regresión nos devuelve datos de los intervalos de confianza y valores p, que son relevantes a la hora de analizar si las variables independientes que hemos incorporado al modelo tienen a aumentar, disminuir o mantener el riesgo de que se produzca metátastis del tumor.
 
-Evaluación del modelo: Se puede aplicar una curva ROC y calcular el AUC para evaluar así la capacidad predicitiva del modelo.
+Incorporaremos todos los datos en un *dataframe*, para después visualizarlos en una tabla.
 
 ```{r}
+
+#Generamos un df con los resultados más relevantes. 
+
+resultados_tabla <- data.frame(
+ Variable =rownames(summary(modelo_regresion)$coefficients),
+ OR = sprintf("%.2f", coef_exponenciados),
+ IC_95 = sprintf("(%.2f - %.2f)", conf_intervalos[,1], conf_intervalos[,2]),
+ P_valor = sprintf("%.3f", valores_p)
+)
+
+tabla_resultados <- resultados_tabla %>%
+  mutate(`OR (IC 95%)` = paste(OR, IC_95)) %>%  # Combinar OR e IC 95%
+  select(Variable, `OR (IC 95%)`, P_valor) %>%  # Seleccionar columnas en el orden correcto
+  rename("P value" = P_valor) %>%  # Renombrar columna de p-valor
+  gt() %>%
+  tab_header(
+    title = md("**Tabla de regresión logística**"),
+    subtitle = md("*Efecto de diversas variables*")
+  ) %>%
+  cols_align(align = "center", columns = c("OR (IC 95%)", "P value")) %>% 
+  tab_options(
+    table.font.names = "Arial",
+    column_labels.font.weight = "bold",
+    heading.align = "left"
+  )
+
+tabla_resultados
+
+```
+
+Esta tabla presenta los resultados de una regresión logística, donde representamos los valores odds ratios (OR) junto con sus intervalos de confianza al 95% (IC 95%) y los valores p para diferentes variables. Como resultado obtenemos:
+
+-   Intercept (constante): representa el valor de la variable dependiente cuando la variable independiente es cero: indica dónde cruza la recta de regresión el eje y. OR = 1.50 (0.25 - 9.81), p = 0.655. No es significativo (p \> 0.05).
+
+-   Terciles de PC1:
+
+    -   **T2:** OR = 0.78 (0.18 - 3.31), p = 0.734
+
+    -   **T3**: OR = 1.59 (0.26 - 10.22), p = 0.614
+
+    -   No hay diferencias significativas en la probabilidad de metástasis según los valores de PC1.
+
+-   Terciles de PC2
+
+    -   **T2**: OR = 1.74 (0.33 - 9.92), p = 0.516
+
+    <!-- -->
+
+    -   **T3**: OR = 0.74 (0.17 - 3.13), p = 0.680
+
+    -   Tampoco se observa un efecto significativo de PC2 sobre la metástasis.
+
+-   Sexo
+
+    -   OR = 2.38 (0.70 - 9.29), p = 0.183. Los valores de OR nos indican que los varones pueden tener un 2,38 veces más de probabilidades de sufrir metástasis que las mujeres. Sin embargo, tanto el IC amplico como el valor de p elevado nos indican que no es estadísticamente signficativo.
+
+-   Tratamiento
+
+    -   OR = 0.54 (0.16 - 1.77), p = 0.316. Una OR menor de 1 en este caso nos indica que el tratamiento B podría estar asociado a una mayor protección contra la metástasis que el tratamiento A. Esto, al igual que el resto de los casos, no es estadísticamente significativo dado al valor p obtenido.
+
+-   Tumores
+
+    -   **CM**: OR = 2.49 (0.64 - 11.29), p = 0.206
+
+    <!-- -->
+
+    -   **CP**: OR = 2.10 (0.34 - 14.62), p = 0.428
+
+    -   Ambos tumores tienen OR \> 1, lo que sugiere una posible asociación con mayor probabilidad de sufrir metástasis. Sin embargo, los intervalos de confianza son amplios y los valores p indican que no hay significancia estadística.
+
+### 4.2. Evaluación del modelo
+
+Se puede aplicar una curva ROC y calcular el AUC para evaluar así la capacidad predicitiva del modelo.
+
+```{r}
+
+#Ejecutamos el modelo para que prediga el estado de metástasis (función predict()) y determinamos la cruva ROC mediante la función roc()
 
 probabilidades <- predict(modelo_regresion, type = "response")
-roc_obj <- roc(datos_modelo$extension, probabilidades)
-plot(roc_obj, main = "Curva ROC")
-auc(roc_obj)  # Devuelve el valor AUC
-
-```
-
-El área bajo la curva nos devuelve un valor de 0.6631, por lo que no llegaría a considerarse un bueno modelo.
-
-### 4.1. Metástasis vs PCA - tratamiento - tumor
-
-Otras dos variables que pueden ser interesantes analizar son tanto el tipo de tratamiento que se ha administrado al paciente como el tipo de tumor que presentan, y ver como estas pueden afectar a que se produzca metástasis. Evaluamos del mismo modo las variables PCA para comprobar que los resultados no difieren mucho del anterior modelo y así poder descartar variables confusoras.
-
-```{r}
-
-df_variables_trat_tumor <- df %>% select(extension, trat, tumor)
-
-datos_modelo_trat_tumor <- cbind(df_variables_trat_tumor, pca_df)
-
-datos_modelo_trat_tumor$extension <- as.factor(datos_modelo_trat_tumor$extension)
-datos_modelo_trat_tumor$trat <- as.factor(datos_modelo_trat_tumor$trat)
-datos_modelo_trat_tumor$tumor <- as.factor(datos_modelo_trat_tumor$tumor)
-
-modelo_regresion_trat_tumor <- glm(extension ~ PC1_tercil + PC2_tercil + trat + tumor, data = datos_modelo_trat_tumor, family = binomial)
-
-summary(modelo_regresion_trat_tumor)
-summary(modelo_regresion_trat_tumor)$coefficients[, 4] #Esto corresponde a la columna de valores p
-exp(cbind(OR = coef(modelo_regresion_trat_tumor), confint(modelo_regresion_trat_tumor)))
-
-levels(datos_modelo_trat_tumor$trat)
-levels(datos_modelo_trat_tumor$tumor)
+roc_obj <- roc(df$extension, probabilidades)
+plot(roc_obj, main = "Curva ROC", xlab = "Ratio de falsos positivos", ylab = "Ratio de verdaderos positivos",
+     print.auc = TRUE, print.auc.y = 0.3, print.auc.col = "blue",
+     legacy.axes = TRUE , grid = TRUE, grid.col = "lightgray",
+     lwd = 2, col = "darkblue")
 
 
 ```
 
-En este caso, la OR obtenida para el tratamiento es de 0.6. Esto nos indica que el tratamiento B tiene un factor protector de un 40% aproximadamente respescto al tratamiento A para que se produzca o no metástasis. Para los tipos de tumor, tanto el tumor CM como el CP, respecto al CCR, muestran una mayor probabilidad (2,24 y 2,49 veces más, respectivamente) de producir metástaisis en el paciente. Los valores p obtenidos son supeirores a 0.05, por lo que como en el caso anterior, los datos carecerían de valores significativos.
-
-Evaluamos el modelo mediante curva ROc y calculando el área bajo la curva.
-
-```{r}
-
-probabilidades <- predict(modelo_regresion_trat_tumor, type = "response")
-roc_obj <- roc(datos_modelo$extension, probabilidades)
-plot(roc_obj, main = "Curva ROC")
-auc(roc_obj)  # Devuelve el valor AUC
-
-```
-
-El área bajo la curva nos devuelve un valor de 0.6655, por lo que este modelo tampoco podría considerarse un bueno modelo.
+El área bajo la curva nos devuelve un valor de 0.724, por lo que podríamos considerlo como un modelo "regular".
