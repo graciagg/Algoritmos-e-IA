@@ -1,0 +1,947 @@
+---
+title: "Actividad 3 Estadística y R"
+author: "Equipo 1 UNIR: Maria Luisa Alonso Núñez, Sara Cerezuela Martínez, Gracia Gimeno Almiñana, Guillermo Mora Collado y Gorka Suárez González"
+date: "2025-01-21"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+---
+
+El objetivo de esta actividad es aplicar los conceptos aprendidos durante la materia (visualización gráfica, análisis descriptivos, contrastes de hipótesis, PCA,...). Utilizaremos un *dataset* que contienen información de la expresión de 46 genes en 65 pacientes, cada uno con distintos tipos de tratamiento y características tumorales.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 0. Carga de liberías y preparación de los datos
+
+Carga de las librerías necesarias para el desarrollo de la actividad.
+
+```{r include=FALSE}
+library(moments)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(car)
+library(gtsummary)
+library(gt)
+library(patchwork)
+library(stats)
+library(factoextra)
+library(pheatmap)
+library(corrplot)
+library(pROC)
+library(flextable)
+
+```
+
+Seleccionamos el directorio y cargamos la base de datos “Dataset expresión genes” con la que trabajaremos durante la actividad. Con la función **any(is.na(df))** comprobamos que no haya missings en los datos proporcionados.
+
+```{r}
+path_gracia <- "C:/Users/graci/Documents/BIOINFORMATICA_UNIR/Estadística y R para Ciencias de la Salud/Actividades/mubio02_act3"
+path_Gorka <-  "~/Desktop/UNIR/Estadística y R para Ciencias de la Salud/Actividades /Actividad 3"
+path <- "~/Desktop/UNIR/Estadística y R para Ciencias de la Salud/Actividades /Actividad 3"
+path_maria.luisa <- "C:/Users/Maris/Documents/Docs_R/act3_est"
+setwd(path_maria.luisa)
+
+df <- read.csv("Dataset expresion genes.csv", sep=',')
+View(df)
+any(is.na(df))
+
+```
+
+Creamos un data frame que contenga los datos de los genes para trabajar con ellos más adelante.
+
+```{r}
+
+genes <- grep("AQ_", colnames(df), value = TRUE)
+genes_df <- df[, genes]
+any(is.na(genes_df))
+```
+
+## 1. Comprobar la normalidad de los genes y realizar una interpretación de los resultados obtenidos
+
+### 1.1. Comprobamos la normalidad de los genes.
+
+```{r}
+
+nombre_genes<-colnames(genes_df) 
+resultados<-data.frame(gen=nombre_genes,p_valor=numeric((length(genes_df))))
+
+```
+
+Gen sera igual a los elementos contenidos en el vector nombre_genes valor_p . De momento la creo vacia pero establezco su longitud para que sea la misma que elementos tiene el vector nomre_genes.
+
+A continuación, uso de notacion cientifica con 3 cifras significativas debido a los valores tan bajos obtenidos En caso de hacer "scientific = F", aun cogiendo 5 cifras seguiria siendo 0 que visualmente queda peor
+
+Principios del Shapiro Test:
+H0 si p_value \> = 0.05 -\> Asumo normalidad 
+H1 si p_value \< 0.05 -\> Asumo que no hay normalidad en mis datos
+
+```{r}
+for (i in 1:length(nombre_genes)) { 
+  normalidad <- shapiro.test(df[[nombre_genes[i]]])
+  resultados[i, "p_valor"] <- signif(normalidad$p.value,3) 
+}
+
+
+resultados$interpretacion <- numeric(length(genes)) # Creo la columna vacia para la interpretacion
+resultados$p_valor<- as.numeric(resultados$p_valor)
+
+# Añadir al dataframe una columna donde se interprete la prueba de normalidad y otra donde se especifique el tipo de test usado
+
+
+for (i in 1:nrow(resultados)) {
+  resultados[i, "interpretacion"] <- ifelse(resultados$p_valor[i] < 0.05, "no presenta normalidad", "normalidad")
+}
+
+
+resultados$test<-numeric(length(genes)) # Creo la columna vacia para el tipo de test usado
+
+for (i in 1:nrow(resultados)){
+  resultados[i, "test"]<-  (" Shapiro Test")
+}
+
+
+```
+
+### 1.2 Creacion de la Tabla 1
+
+(Al ejecutar el siguiente chunk aparecen 2 objetos *shiny.tag*, el importante es el segundo que es el que mas completo esta)
+
+```{r}
+resultados %>%
+  gt()
+
+
+# Aplicar estilos al cuerpo de la tabla
+
+tabla1 <- resultados %>%
+  gt() %>%
+  tab_style(
+    style = cell_fill(color = "lightblue"),  
+    locations = cells_body(
+      columns = "gen"                       
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(color = "red"),     
+    locations = cells_body(
+      columns = "interpretacion",           
+      rows = interpretacion == "no presenta normalidad"              
+    )
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_header(title = md("**Tabla 1**"), subtitle = md("**Comprobar normalidad de los genes**") )
+
+print(tabla1)
+gtsave(tabla1, "tabla1.docx")   # Guardar en word
+file.exists("tabla1.docx") #comprobar que lo ha guardado
+getwd() #ver donde lo ha guardado
+```
+
+## 2. PCA
+
+### 2.1. Aplicación del PCA y elecciones de componentes principales
+
+#### 2.1.1 Implementacion del modelo
+
+```{r}
+# 1. Creacion del modelo
+pca_genes <- prcomp(genes_df, scale = TRUE)
+
+names(pca_genes)
+
+head(pca_genes$rotation)[, 1:5]
+dim(pca_genes$rotation)
+
+head(pca_genes$x)[,1:5]
+
+# Desviación estandar de cada componente principal
+pca_genes$sdev
+
+# Varianza explicada por cada componente
+
+pca_genes$sdev^2
+summary(pca_genes)                      # A partir de esto puedo ver cuanto contribuye cada componente al modelo 
+
+```
+
+#### 2.1.2 Eleccion del numero de componentes principales mediante los eignvalues
+
+```{r}
+
+# Extraer los eignvalores con su varianza acumulativa (%)
+eign_values_df <-as.data.frame(get_eig(pca_genes))
+head(eign_values_df)
+```
+
+Tras analizar el df de los eign values vemos que el primer componente por si ya explica el 52% de la varianza.
+Vemos tambien que cogiendo los 5 primeros componentes ya se explica el 70% de la var total por lo tanto este puede ser un numero adecuado de componentes con los que trabajar.
+
+Ahora vamos a hacer la tabla para representar estos componentes y su varianza explicada
+```{r}
+# Selecciono solo los primeros componentes relevantes
+eign_values_df <- eign_values_df %>%
+  select(variance.percent, cumulative.variance.percent) %>%
+  rename("R²" = variance.percent, "Varianza Acumulada (%)" = cumulative.variance.percent) 
+
+# Añadir una columna de "Componente"
+eign_values_df <- cbind(Componente = paste0("PC", 1:nrow(eign_values_df)), eign_values_df)
+
+#Crear la tabla
+tabla_pca <- eign_values_df %>%
+  head(5) %>%  # Seleccionar solo los primeros 5 componentes
+  gt() %>%
+  tab_header(
+    title = md("**Tabla PCA componentes y R²**. *Varianza explicada por cada componente principal*"),
+  ) %>%
+  tab_style(
+    style = cell_fill(color = "lightblue"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_style(
+    style = cell_borders(sides = "top", color = "blue", weight = px(2)),
+    locations = cells_body()
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = "Componente")
+  ) %>%
+  
+  fmt_number(
+    columns = c("R²", "Varianza Acumulada (%)"), # Especificar las columnas numéricas
+    decimals = 1
+  ) %>%
+  
+  tab_source_note(
+    source_note = md("*Fuente: Análisis PCA sobre los datos de expresión génica*")
+  )
+
+# Guardar en Word
+gtsave(tabla_pca, "tabla_pca.docx")
+
+
+```
+
+
+```{r}
+# Scree plot: Una forma es generando un scree plot que represente los eigenvalores ordenador de mayor a menor.
+# Con la función fviz_screeplot() del paquete factoextra podemos obtener esta representación, sin importar qué función hemos utilizado para generar los componentes principales
+
+fviz_screeplot(pca_genes, addlabels = TRUE, ylim = c(0, 60))+
+  ggtitle("Scree Plot: Varianza Explicada por Componentes Principales") +
+  theme_minimal()
+
+
+```
+
+
+#### 2.1.3 Cargas factoriales del PCA
+
+```{r}
+
+# Extraer las cargas factoriales del PCA
+
+cargas_pca <- as.data.frame(pca_genes$rotation)
+
+# Seleccionar solo las primeras 5 dimensiones
+cargas_pca <- cargas_pca[, 1:5]  # Selecciona los primeros 5 componentes principales
+
+
+# Añadir una columna con los nombres de las variables
+cargas_pca <- cbind(Variable = rownames(cargas_pca), cargas_pca)
+
+# Redondear valores a 1 decimales para mayor claridad
+cargas_pca <- cargas_pca %>% mutate(across(where(is.numeric), ~ round(.x, 1)))
+
+
+
+# Ver primeras filas de la tabla
+head(cargas_pca)
+
+```
+Ahora hago la tabla de estas cargas
+```{r}
+
+# Crear tabla con gt
+tabla_pca_cargas <- cargas_pca %>%
+  gt() %>%
+  tab_header(
+    title = md("**Tabla PCA cargas.** *Cargas de los componentes principales*")
+  ) %>%
+  tab_style(
+    style = cell_fill(color = "lightblue"),
+    locations = cells_column_labels()
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns =  c("Variable", "PC1", "PC2", "PC3", "PC4", "PC5"))
+  ) %>%
+  tab_style(
+    style = cell_borders(sides = "top", color = "blue", weight = px(2)),
+    locations = cells_body()
+  ) %>%
+  tab_source_note(
+    source_note = md("*Fuente: Análisis PCA sobre los datos de expresión génica*")
+  )
+
+# Mostrar la tabla en la consola
+print(tabla_pca_cargas)
+
+# Guardar la tabla en Word
+gtsave(tabla_pca_cargas, "tabla_pca_cargas.docx")
+
+```
+
+
+#### 2.1.4 Contribucion y calidad de las variables al modelo
+
+```{r}
+# Graficas de variables
+var <- get_pca_var(pca_genes)        # A partir de esto podemos extraer informacion de qué genes tienen más impacto en cada componente principal
+var 
+head(var$cor)                        # Correlación entre los genes y los componentes principales
+head(var$cos2)                       # Calidad en el mapa de factores -mide qué tan bien se proyectan las variables en los componentes principales-
+```
+
+**cos2** --\> representa la calidad, mayor cos2 = mayor calidad de la variable = más importante **contrib** --\> Contiene las contribuciones (en %) de las variables a los componentes principales
+
+Ahora visualizamos esta correlacion entre genes y componentes principales
+```{r}
+fviz_pca_var(pca_genes, 
+             col.var = "contrib",   # Colorear según contribución
+             gradient.cols = c("blue", "yellow", "red"),  # Mejor escala de colores
+             repel = TRUE) +        # Evita solapamiento de etiquetas
+  ggtitle("Contribución de Genes a los Componentes Principales") +
+  theme_minimal()
+
+
+```
+```{r}
+# Graficar cos2 con separación del título
+
+corrplot(var$cos2, 
+         is.corr = FALSE, 
+         col = colorRampPalette(c("blue", "yellow", "red"))(100), # Colores en gradiente
+         tl.cex = 0.5,   # Reducir tamaño de etiquetas en el eje X
+         cl.cex = 0.8)   # Ajustar tamaño de leyenda
+
+# Agregar título separado del gráfico
+
+title("Calidad de Representación (Cos2) en el PCA", line = 5, cex.main = 1.0)
+
+
+
+```
+
+
+#### 2.1.5 Contribucion
+
+```{r}
+# Contribución de variables: Top 10 variables
+# La línea roja discontinua indica valor medio de contribución.
+
+# Crear gráfico de contribución de variables al primer componente (Dim1)
+contribucion_variables_dim1 <- fviz_contrib(pca_genes, 
+                                            choice = "var", 
+                                            axes = 1, 
+                                            top = 10) +
+  ggtitle("Contribución de los 10 genes top a la Dim1") +  # Agregar título
+  labs(caption = "La línea roja discontinua indica el valor medio de contribución.") +  #Agregar pie de figura
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),  # Centrar título
+        plot.caption = element_text(hjust = 0.5, size = 10, face = "italic"))  # Formato del pie de figura
+
+  
+contribucion_variables_dim1
+```
+
+De la grafica extraemos que las variables que mas contribuyen a la Dimension 1 son: (busca info de cada una)
+
+-   JAK1: Este gen desempeña un papel crucial en la expresión de genes que median la inflamación, la remodelación epitelial y la progresión del cáncer metastásico. Este gen es un componente clave de la respuesta inmune e inflamatoria de la interleucina-6 (IL-6)/JAK1/STAT3
+
+-   CCL5: Se ha demostrado que este gen participa en el desarrollo y propagación de las células cancerígenas, para ello, las células cancerígenas revierten la acción de este gen para usarlo en contra del paciente formando un microambiente supresor
+
+-   SREBF1:Necesaria para la respuesta inmune innata en los macrófagos al regular el metabolismo lipídico
+
+-   NFE2L2:Codifican proteínas involucradas en la respuesta a lesiones e inflamaciones, que incluye la producción de radicales libres.La activación de NFE2L2 se ha relacionado con la quimiorresistencia en modelos de líneas celulares. Recientemente, se ha descubierto que las mutaciones somáticas que activan NFE2L2, están asociadas con malos resultados en pacientes con cáncer de pulmón de células no pequeñas
+
+-   PTAFR :Este gen codifica un receptor acoplado a proteína G de siete transmembrana para el factor activador de plaquetas (PAF), el PAF es un fosfolípido que desempeña un papel importante en la transformación oncogénica, el crecimiento tumoral, la angiogénesis, la metástasis y los procesos proinflamatorios.
+
+-   TGFB1. En pacientes con cancer, las células tumorales se ha demostrado que inducen la formación de más TGFB1 con lo que consiguen suprimir aun mas la defensa inmunitaria del organismo
+
+-   NFKB1: El factor nuclear de transcripción NF-κB (1) es importante en muchas vías de señalización celular, participa en diversos procesos biológicos y sus alteraciones están asociadas a trastornos inmunitarios y cáncer, entre otras patologías. NF-κB se expresa en todos los tipos de células y tejidos, de tal forma que muchas mutaciones oncogénicas contribuyen a la activación de NF-κB en las células tumorales, y son nuevas rutas de investigación terapéuticas para el cáncer.
+
+-   MAPK1: MAPK1 promueve la metástasis y la invasión del cáncer gástrico como factor de transcripción bidireccional
+
+-   FASN: Codifica para una enzima que ayuda a las células cancerosas a crecer y resistir los ataques inmunitarios
+
+-   NLRP3: La desregulación de la activación del inflamasoma NLRP3 está implicada en la patogénesis tumoral, aunque su papel en el desarrollo y la progresión del cáncer sigue siendo controvertido debido a los hallazgos inconsistentes descritos
+
+Sabiendo esto no es de extrañar que la actividad asociada a estos genes sea tan notoria en nuestra base de datos de pacientes con cancer
+
+¿ Y para las 5 primeras dimensiones ?
+
+```{r}
+
+# Crear gráfico
+contribucion_variables_dim1_5 <- fviz_contrib(pca_genes, 
+                                              choice = "var", 
+                                              axes = 1:5, 
+                                              top = 10) +
+  ggtitle("Contribución de los 10 genes top a las Dim 1 a 5") +  # Agregar título
+  labs(caption = "La línea roja discontinua indica el valor medio de contribución.") +  #Agregar pie de figura
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),  # Centrar título y ponerlo en negrita
+        plot.caption = element_text(hjust = 0.5, size = 10, face = "italic"))  # Pie de figura en cursiva
+
+
+contribucion_variables_dim1_5
+
+```
+
+Podemos apreciar que hay genes que si solo miramos la dimension1 no aparecen como es el caso del STA T3, NOX5, ADIPOQ y CCR5
+
+-   STAT3: La STAT3 es una oncoproteína que se encuentra activa de manera constitutiva en cerca del 70 % de los tumores sólidos y hematológicos, incluidos el mieloma múltiple, varios tipos de linfoma y leucemia, el cáncer de seno, cabeza y cuello, el cáncer de próstata, el carcinoma de ovario, el melanoma, el carcinoma renal, el colorrectal y los tumores del epitelio del timo
+
+-   NOX5: Gen ampliamente implicado en el desarrollo de tejidos cancerígenos y en la proliferación de carcinomas en distintas áreas del cuerpo
+
+-   ADIPOQ: Tiene una relación directa con el cáncer, y por lo que he encontrado, está especialmente relacionado con el cáncer de mama
+
+-   CCR5 : Este gen forma el eje CCL5/CCR5. Este eje se ha demosrtado que esta involucrado en la progresión del cáncer, incluido el crecimiento tumoral autocrino y paracrino, la remodelación y migración de la matriz extracelular, la expansión de células madre cancerosas, la reparación del daño del ADN, la reprogramación metabólica y la angiogénesis
+
+```{r}
+# Contribucion de las 10 primeras variables a los 5 primeros componentes principales
+
+# Ajustar márgenes para dar más espacio al título y la leyenda
+par(mar = c(5, 5, 8, 5))  # Márgenes más grandes arriba y a la derecha
+par(oma = c(0, 0, 5, 0))  # Espacio adicional externo arriba
+
+# Graficar la matriz de contribucion 
+corrplot(var$contrib[1:10, 1:5], is.corr = FALSE, 
+         method = "circle",
+         cl.offset = 1.0,  # Separar la leyenda del gráfico
+         cl.align.text = "l",  # Alinear valores de la leyenda a la derecha
+         col = colorRampPalette(c("blue", "yellow", "red"))(100), # Mejor gradiente de colores
+         tl.cex = 1,  # Hacer etiquetas más legibles
+         tl.col = "black",  # Color de etiquetas en negro
+         cl.cex = 1)  # Ajustar tamaño de la leyenda
+
+# Agregar título más claro, separado del gráfico
+mtext("Contribución de las 10 primeras variables\n a los 5 primeros componentes principales",
+      side = 3, line = 9, cex = 1.0, font = 2)
+  
+```
+
+(recomendado show in new windows)
+
+
+#### 2.1.6 Calidad
+
+```{r}
+# "Calidad" de las 10 primeras variables a los 5 primeros componentes principales
+
+
+# Ajustar márgenes para dar más espacio al título y la leyenda
+par(mar = c(5, 5, 8, 5))  # Márgenes más grandes arriba y a la derecha
+par(oma = c(0, 0, 5, 0))  # Espacio adicional externo arriba
+
+# Graficar la matriz de calidad de representación (cos2)
+corrplot(var$cos2[1:10, 1:5], 
+         is.corr = FALSE, 
+         method = "circle",
+         cl.offset = 1.5,  # Separar la leyenda del gráfico
+         cl.align.text = "l",  # Alinear valores de la leyenda a la derecha
+         col = colorRampPalette(c("blue", "yellow", "red"))(100), # Mejor gradiente de colores
+         tl.cex = 1,  # Hacer etiquetas más legibles
+         tl.col = "black",  # Color de etiquetas en negro
+         cl.cex = 1)  # Ajustar tamaño de la leyenda
+
+# Agregar título más claro, separado del gráfico
+mtext("Calidad de Representación de los 10 Primeros Genes\n en los 5 Primeros Componentes Principales",
+      side = 3, line = 9, cex = 1.0, font = 2)
+
+
+```
+
+```{r}
+fviz_pca_var(pca_genes, 
+             col.var = "cos2",   # Colorear según calidad de la contribucion
+             geom.var = "arrow",
+             gradient.cols = c("blue", "yellow", "red"),  # Mejor escala de colores
+             repel = TRUE) +        # Evita solapamiento de etiquetas
+  ggtitle("Calidad de la Contribución de Genes \n   a los Componentes Principales")
+     theme_minimal()
+
+```
+
+#### 2.1.7 Varianza explicada y acumulada
+
+```{r}
+# Proporción de varianza explicada y acumulada
+
+PVE <- 100*pca_genes$sdev^2/sum(pca_genes$sdev^2)
+PVE
+
+par(mfrow = c(1,2))
+
+plot(PVE, type = "o", 
+     ylab = "PVE", 
+     xlab = "Componente principal", 
+     col = "blue")
+plot(cumsum(PVE), type = "o", 
+     ylab = "PVE acumulada", 
+     xlab = "Componente principal", 
+     col = "brown3")
+abline(v = 5, col = "black", lty = 2, lwd = 2)
+abline(h = 70, col = "black", lty = 2, lwd = 2)
+
+mtext("Proporción de Varianza Explicada y Acumulada", 
+      side = 3, line = -2, outer = TRUE, font = 2, cex = 1.5)
+```
+
+De una forma mas visual se ve como solo el primer componente explica la amyor parte de la variacion y a medida que aumenta el numero de los componentes, menor es su contribucion al modelo.
+Se ve mejor al seleccionar solo los 5 primeros componentes y comprobar que ya se explica una cantidad proxima al 70% de la varianza total.
+
+### 2.2. Aplicación del PCA y elecciones de componentes principales
+
+#### 2.2.1 Graficar individuos
+
+De la misma forma que antes con las variables ahora podemos extraer informacion de los individuos
+
+```{r}
+ind <- get_pca_ind(pca_genes)
+ind
+```
+
+De este modo las contribuciones de los individuos se podran reflejar de la siguiente forma
+
+```{r}
+head(ind$contrib)
+```
+
+Asi como la calidad que podria verse asi
+
+```{r}
+  head(ind$cos2)
+```
+
+Sin embargo estos datos asi no nos dicen mucho, vamos a probar otras formas mas visuales de representarlos
+
+#### 2.2.2. Representación de las observaciones
+
+```{r}
+# Coordenadas de los individuos en las dos primeras componentes
+library(factoextra)
+
+fviz_pca_ind(pca_genes, geom.ind = "point", 
+             col.ind = "#FC4E07", 
+             axes = c(1, 2), 
+             pointsize = 1.5) 
+```
+
+En el grafico mostrado se ve la distribucion de los individuos en funcion de sus proyeciones (coordenadas) en las dos primeras dimensiones
+
+Los ejes x e y (PC1 y PC2) son los ejes de la proyección de los datos. El primer componente principal (PC1) representa la dirección de máxima varianza en los datos, y el segundo componente (PC2) captura la mayor varianza restante, pero ortogonal a PC1
+
+Vamos a graficar ahora en funcion de su calidad (cos2)
+
+```{r}
+# Calidad de los individuos
+
+fviz_pca_ind(pca_genes, col.ind = "cos2", pointsize = "cos2",
+gradient.cols = c("blue", "red"),
+repel = TRUE )
+```
+
+Los individuos mas similares se agrupan
+
+Aquellos con una menor "calidad" (menor valor de cos2) se muestran en azul mientras que los que mas calidad tienen se colorean en rojo
+
+Se pueden ver individuos aislados quiza correspondientes a valores atipicos (ind.40, indv.32)
+
+Por ultimo en funcion de su contribucion
+
+```{r}
+# Contribucion de los individuos
+
+fviz_pca_ind(pca_genes, col.ind = "contrib", pointsize = "cos2",
+gradient.cols = c("blue", "red"),
+repel = TRUE )
+```
+
+Para el caso de los indivuduos su contribucion y calidad a las dos primeras dimensiones es bastante diferente
+
+Se podria ver tambien que individuos aportan mas a la dimendion1\_ mediante un grafico de barras aunque para este caso concreto no es muy relevante
+
+```{r}
+fviz_cos2(pca_genes, choice = "ind")
+
+```
+
+#### 2.2.3 Biplot
+
+Pese a que la funcion biplot solo puede ser útil cuando hay un número bajo de variables e individuos en el conjunto de datos ya que sino la trama final sera ilegible, vamos a representarlo igualmente
+
+```{r}
+fviz_pca_biplot(pca_genes, repel = TRUE,
+                col.var = "blue",  # Color de las variables
+                col.ind = "yellow"  # Color de los individuos
+) + theme_minimal()  
+
+
+```
+
+Le podemos añadir elipses que agrupen en funcion de una caracteristica como puede ser el tratamiento o tipo de cancer pero nuevamente al ser una base de datos "grande" es bastante poco intuitivo
+
+```{r}
+fviz_pca_biplot(pca_genes,
+
+col.ind = df$trat, palette = "jco",
+addEllipses = TRUE, label = "var",
+col.var = "red", repel = TRUE,
+legend.title = "Tratamiento",
+title = "Biplot PCA - Tratamientos")
+```
+
+```{r}
+fviz_pca_biplot(pca_genes,
+
+col.ind = df$tumor, palette = "jco",
+addEllipses = TRUE, label = "var",
+col.var = "red", repel = F,
+legend.title = "Cancer",
+title = "Biplot PCA - Cancer")
+```
+
+En este caso podemos ver algunos genes que parecen destacar o tener mas presencia sobre algun tpo de tumor especifico
+
+```{r}
+fviz_pca_biplot(pca_genes,
+                
+                # Individuos
+                geom.ind = "point",
+                fill.ind = df$tumor, col.ind = "black",
+                pointshape = 21, pointsize = 2,
+                palette = "jco",
+                addEllipses = TRUE,
+
+                # Variables
+                alpha.var = "contrib", col.var = "contrib",
+                gradient.cols = c("blue", "yellow", "red"),
+                legend.title = list(fill = "Cancer", color = "Contrib", alpha = "Contrib"), 
+                title = "PCA Biplot Completo") + 
+  theme_minimal() +  # Aplica un tema minimalista
+  theme(panel.grid = element_blank())  # Elimina el grid de fondo
+
+```
+
+## 3. Tabla descriptiva de las variables más importantes
+
+Para representar la tabla que nos piden:
+```{r}
+
+#Extraer los datos de los componentes principales del PCA
+pca_df <- as.data.frame(pca_genes$x)  # Matriz de individuos en el espacio PCA
+
+#Definir el número de componentes a analizar (ejemplo con PC1 a PC3)
+num_componentes <- 3
+
+#Crear una lista para almacenar los datos con los terciles asignados
+pca_terciles <- pca_df %>%
+  mutate(across(.cols = paste0("PC", 1:num_componentes), .fns = list(
+    tercil = ~ cut(.x, 
+                   breaks = quantile(.x, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE), 
+                   labels = c("t1", "t2", "t3"),
+                   include.lowest = TRUE)
+  ), .names = "{.col}_tercil"))  # Crea una columna con los terciles para cada PC
+
+#Unir los valores originales con sus terciles
+df_terciles <- cbind(pca_df, pca_terciles[, (num_componentes+1):(2*num_componentes)])
+
+#Función para calcular estadísticas descriptivas según normalidad
+calcular_estadisticas <- function(datos, grupo) {
+  resultados <- datos %>%
+    group_by(!!sym(grupo)) %>%
+    summarize(
+      media = mean(Valor, na.rm = TRUE),
+      sd = sd(Valor, na.rm = TRUE),
+      mediana = median(Valor, na.rm = TRUE),
+      p25 = quantile(Valor, 0.25, na.rm = TRUE),
+      p75 = quantile(Valor, 0.75, na.rm = TRUE)
+    ) %>%
+    mutate(
+      estadistica = ifelse(shapiro.test(datos$Valor)$p.value > 0.05, 
+                           paste0(round(media, 2), " ± ", round(sd, 2)), 
+                           paste0(round(mediana, 2), " (", round(p25, 2), "-", round(p75, 2), ")"))
+    ) %>%
+    select(!!sym(grupo), estadistica)
+    
+  return(resultados)
+}
+
+
+#Calcular estadísticas por terciles para cada componente del PCA
+lista_estadisticas <- list()
+
+
+for (i in 1:num_componentes) {
+  col_pc <- paste0("PC", i)  # Nombre de la columna del PCA
+  col_tercil <- paste0("PC", i, "_tercil")  # Nombre de la columna de terciles
+  print(colnames(lista_estadisticas))
+
+  #Verificar si las columnas existen antes de seleccionarlas
+  if (col_pc %in% colnames(df_terciles) & col_tercil %in% colnames(df_terciles)) {
+
+  df_aux <- df_terciles %>%
+    select(!!sym(paste0("PC", i)), !!sym(paste0("PC", i, "_tercil"))) %>%
+    rename(Valor = !!sym(paste0("PC", i)), Tercil = !!sym(paste0("PC", i, "_tercil")))
+
+  estadisticas <- calcular_estadisticas(df_aux, "Tercil")
+  lista_estadisticas[[paste0("PC", i)]] <- estadisticas
+  }
+}
+
+#Unir todas las tablas en una sola
+tabla_final <- bind_rows(lista_estadisticas, .id = "Componente")
+
+print(colnames(tabla_final))
+
+#Crear tabla en `gt()` con el formato adecuado
+tabla_descriptiva <- tabla_final %>%
+  gt() %>%
+  tab_header(title = md("**Tabla de Estadísticas Descriptivas por Terciles del PCA**")) %>%
+  cols_label(
+    Componente = "Componente PCA",  # Verifica si "Componente" realmente existe
+    Tercil = "Grupo Tercil",
+    estadistica = "Estadística Descriptiva"
+  ) %>%
+  tab_style(style = cell_fill(color = "lightblue"), locations = cells_column_labels()) %>%
+  tab_source_note(source_note = "Fuente: Análisis PCA sobre los datos de expresión génica")
+
+#Mostrar tabla
+print(tabla_descriptiva)
+
+#Guardar tabla en Word
+gtsave(tabla_descriptiva, "tabla_estadisticas_terciles.docx")
+
+```
+
+(Este chunck de abajo es el que estaba puesto y Marisa propone el de arriba)
+```{r}
+
+# 1. Sacamos cuartiles de cada componente a representar (2 componentes)
+terciles_PC1 <- quantile(pca_genes$x[, 1], probs = c(1/3, 2/3))
+terciles_PC2 <- quantile(pca_genes$x[, 2], probs = c(1/3, 2/3))
+
+# 2. Para cada observacion, tenemos que indicar en qué percentil caen en cada una de las componentes (PC1 y PC2)
+df$tercil_PC1 <- cut(pca_genes$x[, 1], breaks = c(-Inf, terciles_PC1, Inf), labels = c("t1", "t2", "t3"))
+df$tercil_PC2 <- cut(pca_genes$x[, 2], breaks = c(-Inf, terciles_PC2, Inf), labels = c("t1", "t2", "t3"))
+
+tabla2 <- data.frame()
+
+get_stats <- function(x) {
+  if (length(unique(x)) > 2 & all(!is.na(x))) {
+    # Si es paramétrico, usamos la media y la desviación estándar
+    return(c(mean = mean(x, na.rm = TRUE), sd = sd(x, na.rm = TRUE)))
+  } else {
+    # Si no es paramétrico, usamos la mediana y el rango intercuartílico
+    return(c(median = median(x, na.rm = TRUE), IQR = IQR(x, na.rm = TRUE)))
+  }
+}
+
+# Crear la tabla descriptiva para PC1 y PC2
+for (pc in 1:2) {  # Para cada componente
+  for (tercil in c("t1", "t2", "t3")) { # Para cada tercil
+    # Subconjunto de datos para ese tercil y componente
+    subset_data <- pca_genes$x[df[paste0("tercil_PC", pc)] == tercil]
+    
+    # Obtener estadísticas descriptivas
+    stats <- get_stats(subset_data)
+    
+    # Guardar los resultados
+    resultados <- rbind(resultados, c(Componente = paste0("PC", pc), 
+                                      Tercil = tercil, 
+                                      stats))
+  }
+}
+
+# Dar formato a la tabla de resultados
+colnames(resultados) <- c("Componente", "Tercil", "Media/Mediana", "Desviación Estándar/IQR")
+
+# Mostrar la tabla resultante
+print(resultados)
+```
+
+```{r}
+df_long <- df %>%
+  pivot_longer(cols = starts_with("AQ_"),  # Cambia esto según el nombre de las columnas de tus genes
+               names_to = "Gene",
+               values_to = "Expression")
+
+tabla_resumen <- df_long %>%
+  tbl_summary(
+    by = "tercil_PC1",  # Agrupamos por terciles del PC1 (o 'tercil_PC2' si quieres hacerlo por PC2),
+    statistic = list(all_categorical() ~ "{n}"),
+    digits = all_continuous() ~ c(2, 2),
+    missing = "no"
+  ) %>%
+  add_p() 
+tabla_resumen
+```
+
+## 4. Implementar un modelo de regresión logística
+
+La regresión logística es un modelo estadístico ampliamente utilizado en la biomedicina para anilizar factores de riesgo y predecir eventos clínicos. Esta busca modelar la relación entre una variable de resultado binaria y un conjunto de variables predictoras.
+
+En primero lugar, transformaremos la variable 'Extension' en una respuesta binomial (si y no). Es decir, en caso de que haya metástatisis será 'si' y de ser regional o localizado corresponderá a 'no'.
+
+```{r}
+
+df <- df %>%
+  mutate(extension = ifelse(extension == "metastasico", "Si", "No"))
+
+```
+
+### 4.1. Metástasis vs PCA - sexo - trat - tumor
+
+Tomamos para este primer ejemplo los dos primeros PCA, ya que, como hemos visto anteriormente, son los que representan la mayor varianza de los datos. También aplicaremos las variables sexo, tratamiento y tumor, ya que son variables que pueden influir en la metástatis tumoral.
+
+```{r}
+
+# Agreamos los PC1 y PC2 al dataframe inicial.
+# Creamos los terciles (T1, T2, T3) de los dos primeros componentes
+
+df$PC1 <- pca_genes$x[, 1]
+df$PC2 <- pca_genes$x[, 2]
+
+df <- df %>%
+    mutate(tercil_PC1 = cut(PC1, breaks = quantile(PC1, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE), 
+                      include.lowest = TRUE, labels = c("T1", "T2", "T3")),
+    tercil_PC2 = cut(PC2, breaks = quantile(PC2, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE), 
+                      include.lowest = TRUE, labels = c("T1", "T2", "T3")),
+  )
+
+#Convertimos a factor las variables categóricas que vayamos a utilizar en el modelo de regresión
+
+df$extension <- as.factor(df$extension) 
+df$sexo <- as.factor(df$sexo)
+df$trat <- as.factor(df$trat)
+df$tumor <- as.factor(df$tumor)
+
+# Aplicamos el modelo de regresion 
+
+modelo_regresion <- glm(extension ~ tercil_PC1 + tercil_PC2 + sexo + trat+ tumor, data = df, family = binomial)
+
+summary(modelo_regresion) # Resumen del modelo
+coef_exponenciados <-  exp(coef(modelo_regresion))
+conf_intervalos <- exp(confint(modelo_regresion))
+valores_p <- summary(modelo_regresion)$coefficients[, 4] #Esto corresponde a la columna de valores p
+
+# Con levels, podemos ver que resultado de cada variable coge como referencia (0) el modelo. 
+
+levels(df$extension)
+levels(df$sexo)
+levels(df$trat)
+levels(df$tumor)
+
+```
+
+El modelo de regresión nos devuelve datos de los intervalos de confianza y valores p, que son relevantes a la hora de analizar si las variables independientes que hemos incorporado al modelo tienen a aumentar, disminuir o mantener el riesgo de que se produzca metátastis del tumor.
+
+Incorporaremos todos los datos en un *dataframe*, para después visualizarlos en una tabla.
+
+```{r}
+
+#Generamos un df con los resultados más relevantes. 
+
+resultados_tabla <- data.frame(
+ Variable =rownames(summary(modelo_regresion)$coefficients),
+ OR = sprintf("%.2f", coef_exponenciados),
+ IC_95 = sprintf("(%.2f - %.2f)", conf_intervalos[,1], conf_intervalos[,2]),
+ P_valor = sprintf("%.3f", valores_p)
+)
+
+tabla_resultados <- resultados_tabla %>%
+  mutate(`OR (IC 95%)` = paste(OR, IC_95)) %>%  # Combinar OR e IC 95%
+  select(Variable, `OR (IC 95%)`, P_valor) %>%  # Seleccionar columnas en el orden correcto
+  rename("P value" = P_valor) %>%  # Renombrar columna de p-valor
+  gt() %>%
+  tab_header(
+    title = md("**Tabla de regresión logística**"),
+    subtitle = md("*Efecto de diversas variables*")
+  ) %>%
+  cols_align(align = "center", columns = c("OR (IC 95%)", "P value")) %>% 
+  tab_options(
+    table.font.names = "Arial",
+    column_labels.font.weight = "bold",
+    heading.align = "left"
+  )
+
+tabla_resultados
+
+```
+
+Esta tabla presenta los resultados de una regresión logística, donde representamos los valores odds ratios (OR) junto con sus intervalos de confianza al 95% (IC 95%) y los valores p para diferentes variables. Como resultado obtenemos:
+
+-   Intercept (constante): representa el valor de la variable dependiente cuando la variable independiente es cero: indica dónde cruza la recta de regresión el eje y. OR = 1.50 (0.25 - 9.81), p = 0.655. No es significativo (p \> 0.05).
+
+-   Terciles de PC1:
+
+    -   **T2:** OR = 0.78 (0.18 - 3.31), p = 0.734
+
+    -   **T3**: OR = 1.59 (0.26 - 10.22), p = 0.614
+
+    -   No hay diferencias significativas en la probabilidad de metástasis según los valores de PC1.
+
+-   Terciles de PC2
+
+    -   **T2**: OR = 1.74 (0.33 - 9.92), p = 0.516
+
+    <!-- -->
+
+    -   **T3**: OR = 0.74 (0.17 - 3.13), p = 0.680
+
+    -   Tampoco se observa un efecto significativo de PC2 sobre la metástasis.
+
+-   Sexo
+
+    -   OR = 2.38 (0.70 - 9.29), p = 0.183. Los valores de OR nos indican que los varones pueden tener un 2,38 veces más de probabilidades de sufrir metástasis que las mujeres. Sin embargo, tanto el IC amplico como el valor de p elevado nos indican que no es estadísticamente signficativo.
+
+-   Tratamiento
+
+    -   OR = 0.54 (0.16 - 1.77), p = 0.316. Una OR menor de 1 en este caso nos indica que el tratamiento B podría estar asociado a una mayor protección contra la metástasis que el tratamiento A. Esto, al igual que el resto de los casos, no es estadísticamente significativo dado al valor p obtenido.
+
+-   Tumores
+
+    -   **CM**: OR = 2.49 (0.64 - 11.29), p = 0.206
+
+    -   **CP**: OR = 2.10 (0.34 - 14.62), p = 0.428
+
+    -   Ambos tumores tienen OR \> 1, lo que sugiere una posible asociación con mayor probabilidad de sufrir metástasis. Sin embargo, los intervalos de confianza son amplios y los valores p indican que no hay significancia estadística.
+
+### 4.2. Evaluación del modelo
+
+Se puede aplicar una curva ROC y calcular el AUC para evaluar así la capacidad predicitiva del modelo.
+
+```{r}
+
+#Ejecutamos el modelo para que prediga el estado de metástasis (función predict()) y determinamos la cruva ROC mediante la función roc()
+
+probabilidades <- predict(modelo_regresion, type = "response")
+roc_obj <- roc(df$extension, probabilidades)
+plot(roc_obj, main = "Curva ROC", xlab = "Ratio de falsos positivos", ylab = "Ratio de verdaderos positivos",
+     print.auc = TRUE, print.auc.y = 0.3, print.auc.col = "blue",
+     legacy.axes = TRUE , grid = TRUE, grid.col = "lightgray",
+     lwd = 2, col = "darkblue")
+
+
+```
+
+El área bajo la curva nos devuelve un valor de 0.724, por lo que podríamos considerlo como un modelo "regular".
