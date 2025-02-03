@@ -46,6 +46,7 @@ path_gracia <- "C:/Users/graci/Documents/BIOINFORMATICA_UNIR/Estadística y R pa
 path_Gorka <-  "~/Desktop/UNIR/Estadística y R para Ciencias de la Salud/Actividades /Actividad 3"
 path <- "~/Desktop/UNIR/Estadística y R para Ciencias de la Salud/Actividades /Actividad 3"
 path_maria.luisa <- "C:/Users/Maris/Documents/Docs_R/act3_est"
+path_Sara<-"C:/Users/HP/Desktop/UNIR/Asignaturas 1er Cuatri/Estadística y R/R"
 setwd(path_maria.luisa)
 
 df <- read.csv("Dataset expresion genes.csv", sep=',')
